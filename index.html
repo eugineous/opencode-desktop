@@ -224,6 +224,50 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .session-pill.on{background:var(--accentBg);border-color:var(--accent);color:var(--accent)}
 .session-pill.new{border-style:dashed;color:var(--muted)}
 .session-pill.new:hover{border-color:var(--accent);color:var(--accent)}
+.session-ts{font-size:9px;color:var(--muted);display:block;margin-top:2px}
+/* Light theme override */
+:root[data-theme="light"]{
+--bg:#f5f5f5;--surface:#ffffff;--surface2:#f0f0f0;--card:#e8e8e8;
+--hover:#e0e0e0;--border:#d0d0d0;--text:#1a1a1a;--text2:#555;
+--muted:#999;--accent:#d97706;--accent2:#b45309;--accentDim:#fde68a;
+--accentBg:rgba(217,119,6,.08);--purple:#7c3aed;--purpleDim:#ede9fe;
+--green:#16a34a;--greenDim:#dcfce7;--red:#dc2626;--redDim:#fee2e2;
+--blue:#2563eb;--blueDim:#dbeafe
+}
+/* Git commit form */
+.git-commit-form{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:10px;margin-top:8px}
+.git-commit-form textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:11.5px;padding:6px 8px;outline:none;resize:vertical;min-height:44px;font-family:inherit}
+.git-commit-form textarea:focus{border-color:var(--accent)}
+.git-commit-actions{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.git-commit-cb{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer}
+.git-commit-cb input{accent-color:var(--accent)}
+/* Notes search / preview */
+.notes-toolbar{padding:4px 8px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center}
+.notes-toolbar input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-size:11px;outline:none}
+.notes-toolbar input:focus{border-color:var(--accent)}
+.note-preview-mode{flex:1;overflow-y:auto;padding:16px 20px;font-size:13px;line-height:1.7;color:var(--text);word-wrap:break-word}
+.note-preview-mode h1,.note-preview-mode h2,.note-preview-mode h3{color:var(--accent);margin:10px 0 5px}
+.note-preview-mode code{background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:11px;font-family:'Cascadia Mono',monospace;color:var(--accent)}
+.note-preview-mode pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;margin:8px 0;overflow-x:auto}
+.note-preview-mode pre code{background:transparent;padding:0;color:var(--text)}
+.note-preview-mode blockquote{border-left:3px solid var(--accent);margin:6px 0;padding:4px 12px;color:var(--text2)}
+.note-search-results{position:absolute;z-index:80;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.4);max-height:280px;overflow-y:auto;width:calc(100% - 32px);left:16px;top:44px}
+.note-sr-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--border)}
+.note-sr-item:hover{background:var(--hover)}
+.note-sr-title{font-size:12px;color:var(--text);font-weight:600}
+.note-sr-snippet{font-size:10.5px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:2px}
+/* API key manager */
+.apikey-row{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);font-size:11.5px}
+.apikey-provider{width:100px;color:var(--text2);font-weight:600;flex-shrink:0}
+.apikey-val{flex:1;color:var(--muted);font-family:'Cascadia Mono',monospace;font-size:10.5px;overflow:hidden;text-overflow:ellipsis}
+/* Recent projects */
+.recent-proj-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:11.5px;color:var(--text2);transition:background .08s}
+.recent-proj-item:hover{background:var(--hover);color:var(--accent)}
+/* Font size controls */
+.font-ctrl{display:flex;align-items:center;gap:4px}
+.font-ctrl button{width:22px;height:22px;background:var(--card);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1}
+.font-ctrl button:hover{border-color:var(--accent);color:var(--accent)}
+.font-ctrl span{font-size:10px;color:var(--muted);min-width:22px;text-align:center}
 </style>
 </head>
 <body>
@@ -315,6 +359,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <span id="t-st">Starting OpenCode...</span>
         <div class="t-bar-actions">
           <button class="t-bar-btn" onclick="launchOpenCode()" id="launch-btn" style="background:var(--accentBg);border-color:var(--accent);color:var(--accent)">&#9654; Launch OpenCode</button>
+          <div class="font-ctrl">
+            <button onclick="termFontSize(-1)" title="Decrease font">A&#8722;</button>
+            <span id="term-fs-lbl">13</span>
+            <button onclick="termFontSize(1)" title="Increase font">A+</button>
+          </div>
           <button class="t-bar-btn" onclick="termClear()">Clear</button>
           <button class="t-bar-btn" onclick="termReconnect()">Restart</button>
         </div>
@@ -333,9 +382,25 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
     <!-- GIT VIEW -->
     <div class="vw" id="v-git">
-      <div class="gv" id="git-view">
-        <h3>Git</h3>
+      <div style="padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700;color:var(--accent);flex:1">Git</span>
+        <select id="git-branch-sel" onchange="switchBranchUI(this.value)" style="background:var(--card);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:11px;padding:3px 7px;outline:none;cursor:pointer"></select>
+        <button class="t-bar-btn" onclick="gitPullUI()" title="Pull from remote">&#8595; Pull</button>
+        <button class="t-bar-btn" onclick="gitPushUI()" title="Push to remote">&#8593; Push</button>
+        <button class="t-bar-btn" onclick="promptCreateBranch()" title="Create branch">+ Branch</button>
+        <button class="t-bar-btn" onclick="loadGitFull()">&#8635; Refresh</button>
+      </div>
+      <div class="gv" id="git-view" style="flex:1;overflow-y:auto">
         <div id="git-content"><div class="gv-empty">Loading git status...</div></div>
+        <div class="git-commit-form" id="git-commit-form" style="display:none">
+          <div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Commit</div>
+          <textarea id="git-commit-msg" placeholder="Commit message..." rows="2"></textarea>
+          <div class="git-commit-actions">
+            <label class="git-commit-cb"><input type="checkbox" id="git-stage-all"> Stage all</label>
+            <button class="stg-btn" onclick="gitCommitUI()">&#10003; Commit</button>
+            <button class="stg-btn sec" onclick="document.getElementById('git-commit-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -347,15 +412,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
             <h3 style="font-size:11px">Obsidian Vault</h3>
             <button class="nh-btn" onclick="newObsidianNote()">+ New</button>
           </div>
+          <div class="notes-toolbar" style="flex-shrink:0;position:relative">
+            <input id="notes-search-inp" placeholder="Search notes..." oninput="notesSearchDebounce()" style="">
+            <div id="notes-search-results" class="note-search-results" style="display:none"></div>
+          </div>
           <div id="notes-list" style="flex:1;overflow-y:auto;padding:4px 0;font-size:11px"></div>
         </div>
         <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
           <div class="nh" style="flex-shrink:0">
             <h3 id="note-title" style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Select a note</h3>
+            <button class="nh-btn" id="note-preview-btn" onclick="toggleNotePreview()" style="display:none;background:var(--surface2);color:var(--text2);border:1px solid var(--border)">Preview</button>
             <button class="nh-btn" onclick="saveCurrentNote()" id="note-save-btn" style="display:none">Save</button>
-            <button class="nh-btn" onclick="exportNoteToObsidian()" id="note-export-btn" style="display:none;background:var(--surface2);color:var(--text)">&#8599; Export</button>
           </div>
           <textarea id="note-editor" class="nc" style="resize:none;border:none;outline:none;background:var(--bg);width:100%;box-sizing:border-box;font-family:'Cascadia Mono','Consolas',monospace" placeholder="Select a note from the list, or create a new one..." oninput="onNoteEdit()"></textarea>
+          <div id="note-preview" class="note-preview-mode" style="display:none"></div>
         </div>
       </div>
     </div>
@@ -422,6 +492,58 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         </div>
 
         <div class="stg">
+          <label>Open in Editor</label>
+          <div class="stg-row" style="gap:6px">
+            <button class="stg-btn sec" onclick="api.openInVSCode()">Open in VS Code</button>
+            <button class="stg-btn sec" onclick="openInExplorer()">Open in Explorer</button>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>Recent Projects</label>
+          <div id="st-recent-projects" style="margin-top:4px"></div>
+        </div>
+
+        <div class="stg">
+          <label>API Keys <span style="font-size:9px;color:var(--muted)">(encrypted with OS keychain)</span></label>
+          <div id="st-apikeys" style="margin:6px 0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden"></div>
+          <div class="stg-row" style="margin-top:6px;gap:6px">
+            <select id="st-apikey-provider" class="stg-in" style="width:120px">
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Gemini</option>
+              <option value="groq">Groq</option>
+              <option value="openrouter">OpenRouter</option>
+            </select>
+            <input class="stg-in" id="st-apikey-val" type="password" placeholder="sk-..." style="flex:1">
+            <button class="stg-btn" onclick="saveApiKeyUI()">Save Key</button>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>Appearance</label>
+          <div class="stg-row" style="gap:8px;flex-wrap:wrap">
+            <button class="stg-btn sec" onclick="setTheme('dark')">&#9790; Dark</button>
+            <button class="stg-btn sec" onclick="setTheme('light')">&#9728; Light</button>
+            <button class="stg-btn sec" onclick="setTheme('')">System</button>
+            <div class="font-ctrl" style="margin-left:auto">
+              <button onclick="termFontSize(-1)">A&#8722;</button>
+              <span id="st-fs-lbl" style="font-size:10.5px;color:var(--muted);min-width:28px;text-align:center">13</span>
+              <button onclick="termFontSize(1)">A+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>Updates</label>
+          <div class="stg-note" id="st-update">Check for a new version of OpenCode Desktop.</div>
+          <div class="stg-row" style="margin-top:6px">
+            <button class="stg-btn sec" onclick="checkUpdatesUI()">Check for Updates</button>
+            <span id="st-version" style="font-size:10px;color:var(--muted);margin-left:8px"></span>
+          </div>
+        </div>
+
+        <div class="stg">
           <label>System Info</label>
           <div class="stg-note" id="st-sys">Loading...</div>
         </div>
@@ -477,6 +599,7 @@ function sw(v) {
   document.querySelectorAll('.nv-b').forEach(b => b.classList.remove('on'));
   document.querySelector('[data-v="' + v + '"]').classList.add('on');
   if (v === 'terminal' && term) setTimeout(() => { fitAddon?.fit(); term.focus(); }, 50);
+  if (v === 'git') { loadBranches(); document.getElementById('git-commit-form').style.display = ''; }
 }
 
 function toggleSB() {
@@ -513,6 +636,7 @@ async function loadProject(dir) {
   await loadFileTree();
   await loadGitMini();
   setProjectStatus(true);
+  try { await api.recentProjectsAdd(dir); await loadRecentProjects(); } catch {}
 
   // Update settings panel git status
   try {
@@ -555,6 +679,7 @@ function renderTree(items, container, depth) {
 
       if (item.type === 'file') {
         el.onclick = () => openFile(item.fullPath, item.name);
+        el.addEventListener('contextmenu', ev => { ev.preventDefault(); showFileCtxMenu(ev.clientX, ev.clientY, item); });
       } else if (item.type === 'folder' && item.children) {
         let collapsed = false;
         const childContainer = document.createElement('div');
@@ -836,7 +961,10 @@ async function loadSessions() {
   let html = '<span class="session-pill new" onclick="newSession()">+ New</span>';
   for (const s of sessions) {
     const cls = s.name === currentSession ? ' on' : '';
-    html += '<span class="session-pill' + cls + '" onclick="switchSession(\'' + escAttr(s.name) + '\')">' + escHtml(s.name) + '</span>';
+    html += `<span class="session-pill${cls}" style="display:inline-flex;align-items:center;gap:4px">
+      <span onclick="switchSession('${escAttr(s.name)}')">${escHtml(s.name)}</span>
+      <span onclick="deleteSessionUI('${escAttr(s.name)}')" title="Delete" style="opacity:.5;font-size:9px;padding:0 1px;cursor:pointer" onmouseenter="this.style.opacity=1;this.style.color='var(--red)'" onmouseleave="this.style.opacity=.5;this.style.color=''">&#215;</span>
+    </span>`;
   }
   bar.innerHTML = html;
 }
@@ -870,6 +998,18 @@ async function switchSession(name) {
     for (const m of chatMessages) addMsg(m.role, m.text);
   }
   loadSessions();
+}
+
+async function deleteSessionUI(name) {
+  if (!confirm('Delete session "' + name + '"?')) return;
+  await api.sessionDeleteGlobal(name);
+  if (currentSession === name) {
+    currentSession = 'default';
+    chatMessages = [];
+    document.getElementById('ch-msgs').innerHTML = '';
+    document.getElementById('ch-empty').style.display = '';
+  }
+  await loadSessions();
 }
 
 // ─── VOICE ────────────────────────────────────────────────────────
@@ -919,7 +1059,7 @@ function initTerm() {
 
   term = new Terminal({
     fontFamily: "'Cascadia Code','Cascadia Mono','Consolas','Courier New',monospace",
-    fontSize: 13,
+    fontSize: termFontSz,
     lineHeight: 1.3,
     cursorBlink: true,
     cursorStyle: 'bar',
@@ -1143,7 +1283,9 @@ async function openObsidianNote(relPath, name, el) {
   editor.value = content || '';
   document.getElementById('note-title').textContent = (name || relPath).replace(/\.md$/, '');
   document.getElementById('note-save-btn').style.display = '';
-  document.getElementById('note-export-btn').style.display = 'none';
+  document.getElementById('note-preview-btn').style.display = '';
+  // Reset to edit mode when switching notes
+  if (notePreviewOn) toggleNotePreview();
   noteEdited = false;
 }
 
@@ -1291,6 +1433,289 @@ function showTermCtxMenu(x, y, selected) {
   if (r.bottom > window.innerHeight) m.style.top = (y - r.height) + 'px';
 }
 
+// ─── FILE TREE CONTEXT MENU ──────────────────────────────────────
+function showFileCtxMenu(x, y, item) {
+  document.getElementById('file-ctx')?.remove();
+  const m = document.createElement('div');
+  m.id = 'file-ctx';
+  m.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:4px;z-index:9999;min-width:140px;box-shadow:0 6px 24px rgba(0,0,0,.5);font-size:12px`;
+
+  function menuItem(label, action) {
+    const d = document.createElement('div');
+    d.textContent = label;
+    d.style.cssText = 'padding:7px 14px;cursor:pointer;border-radius:4px;color:var(--text)';
+    d.onmouseenter = () => { d.style.background = 'var(--accentBg)'; d.style.color = 'var(--accent)'; };
+    d.onmouseleave = () => { d.style.background = ''; d.style.color = 'var(--text)'; };
+    d.onclick = () => { m.remove(); action(); };
+    m.appendChild(d);
+  }
+
+  menuItem('Open', () => openFile(item.fullPath, item.name));
+  menuItem('Rename', async () => {
+    const newName = prompt('New name:', item.name);
+    if (!newName || newName === item.name) return;
+    const dir = item.fullPath.slice(0, item.fullPath.length - item.name.length);
+    const newPath = dir + newName;
+    const ok = await api.fileRenameFs({ from: item.fullPath, to: newPath });
+    if (ok) { showNotify('Renamed'); await loadFileTree(); }
+    else showNotify('Rename failed');
+  });
+  menuItem('Delete', async () => {
+    if (!confirm('Delete ' + item.name + '?')) return;
+    const ok = await api.fileDeleteFs(item.fullPath);
+    if (ok) { showNotify('Deleted'); await loadFileTree(); if (curFile === item.fullPath) { curFile = null; sw('files'); } }
+    else showNotify('Delete failed');
+  });
+
+  document.body.appendChild(m);
+  setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }), 0);
+  const r = m.getBoundingClientRect();
+  if (r.right > window.innerWidth) m.style.left = (x - r.width) + 'px';
+  if (r.bottom > window.innerHeight) m.style.top = (y - r.height) + 'px';
+}
+
+// ─── FONT SIZE ────────────────────────────────────────────────────
+let termFontSz = 13;
+function termFontSize(delta) {
+  termFontSz = Math.max(9, Math.min(22, termFontSz + delta));
+  if (term) term.options.fontSize = termFontSz;
+  setTimeout(() => { try { fitAddon?.fit(); } catch {} }, 30);
+  const lbl1 = document.getElementById('term-fs-lbl');
+  const lbl2 = document.getElementById('st-fs-lbl');
+  if (lbl1) lbl1.textContent = termFontSz;
+  if (lbl2) lbl2.textContent = termFontSz;
+  try { localStorage.setItem('termFontSz', termFontSz); } catch {}
+}
+function loadFontSizePref() {
+  try {
+    const v = parseInt(localStorage.getItem('termFontSz') || '13', 10);
+    if (v >= 9 && v <= 22) { termFontSz = v; }
+  } catch {}
+  const lbl1 = document.getElementById('term-fs-lbl');
+  const lbl2 = document.getElementById('st-fs-lbl');
+  if (lbl1) lbl1.textContent = termFontSz;
+  if (lbl2) lbl2.textContent = termFontSz;
+}
+
+// ─── THEME ────────────────────────────────────────────────────────
+function setTheme(t) {
+  if (t) document.documentElement.setAttribute('data-theme', t);
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('theme', t); } catch {}
+}
+function loadThemePref() {
+  try {
+    const t = localStorage.getItem('theme') || '';
+    setTheme(t);
+  } catch {}
+}
+
+// ─── GIT EXTENDED ────────────────────────────────────────────────
+async function loadGitFull() {
+  loadGit();
+  loadBranches();
+  document.getElementById('git-commit-form').style.display = '';
+}
+
+async function loadBranches() {
+  const sel = document.getElementById('git-branch-sel');
+  if (!sel) return;
+  try {
+    const branches = await api.gitBranches();
+    const current = (await api.gitBranch()).current || '';
+    sel.innerHTML = branches.map(b => `<option value="${escHtml(b)}"${b === current ? ' selected' : ''}>${escHtml(b)}</option>`).join('');
+    if (!branches.length) sel.innerHTML = '<option>No branches</option>';
+  } catch { sel.innerHTML = '<option>--</option>'; }
+}
+
+async function switchBranchUI(name) {
+  if (!name || name === '--') return;
+  const r = await api.gitSwitchBranch(name);
+  if (r.success) { showNotify('Switched to ' + name); await loadGit(); }
+  else showNotify('Branch switch failed: ' + (r.error || ''));
+}
+
+async function promptCreateBranch() {
+  const name = prompt('New branch name:');
+  if (!name) return;
+  const r = await api.gitCreateBranch(name);
+  if (r.success) { showNotify('Created branch ' + name); await loadBranches(); }
+  else showNotify('Failed: ' + (r.error || ''));
+}
+
+async function gitCommitUI() {
+  const msg = document.getElementById('git-commit-msg').value.trim();
+  if (!msg) { showNotify('Enter a commit message'); return; }
+  const stageAll = document.getElementById('git-stage-all').checked;
+  const r = await api.gitCommitFull({ message: msg, all: stageAll });
+  if (r.success) {
+    showNotify('Committed!');
+    document.getElementById('git-commit-msg').value = '';
+    document.getElementById('git-stage-all').checked = false;
+    await loadGit();
+  } else showNotify('Commit failed: ' + (r.error || ''));
+}
+
+async function gitPushUI() {
+  showNotify('Pushing...');
+  const r = await api.gitPush();
+  showNotify(r.success ? 'Pushed!' : 'Push failed: ' + (r.error || '').slice(0, 80));
+}
+
+async function gitPullUI() {
+  showNotify('Pulling...');
+  const r = await api.gitPull();
+  showNotify(r.success ? 'Pulled!' : 'Pull failed: ' + (r.error || '').slice(0, 80));
+  if (r.success) await loadGit();
+}
+
+// ─── NOTES SEARCH / PREVIEW ───────────────────────────────────────
+let notesSearchTimer = null;
+let notePreviewOn = false;
+
+function notesSearchDebounce() {
+  clearTimeout(notesSearchTimer);
+  notesSearchTimer = setTimeout(doNotesSearch, 350);
+}
+
+async function doNotesSearch() {
+  const q = document.getElementById('notes-search-inp').value.trim();
+  const container = document.getElementById('notes-search-results');
+  if (!q) { container.style.display = 'none'; return; }
+  container.style.display = 'block';
+  container.innerHTML = '<div class="note-sr-item" style="color:var(--muted)">Searching...</div>';
+  try {
+    const results = await api.obsidianSearch(q);
+    if (!results.length) {
+      container.innerHTML = '<div class="note-sr-item" style="color:var(--muted)">No results</div>';
+      return;
+    }
+    container.innerHTML = results.map(r =>
+      `<div class="note-sr-item" onclick="openObsidianNote('${escAttr(r.relPath)}','${escAttr(r.name)}',null);document.getElementById('notes-search-results').style.display='none';document.getElementById('notes-search-inp').value=''">
+        <div class="note-sr-title">${escHtml(r.name.replace(/\.md$/, ''))}</div>
+        <div class="note-sr-snippet">${escHtml(r.snippet)}</div>
+      </div>`).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="note-sr-item" style="color:var(--accent)">Error: ' + escHtml(String(e)) + '</div>';
+  }
+}
+
+document.addEventListener('click', e => {
+  const sr = document.getElementById('notes-search-results');
+  if (sr && !sr.contains(e.target) && e.target.id !== 'notes-search-inp') sr.style.display = 'none';
+});
+
+function toggleNotePreview() {
+  notePreviewOn = !notePreviewOn;
+  const editor = document.getElementById('note-editor');
+  const preview = document.getElementById('note-preview');
+  const btn = document.getElementById('note-preview-btn');
+  if (notePreviewOn) {
+    editor.style.display = 'none';
+    preview.style.display = '';
+    preview.innerHTML = renderMarkdownSimple(editor.value);
+    btn.textContent = 'Edit';
+    btn.style.background = 'var(--accentBg)';
+    btn.style.color = 'var(--accent)';
+  } else {
+    editor.style.display = '';
+    preview.style.display = 'none';
+    btn.textContent = 'Preview';
+    btn.style.background = 'var(--surface2)';
+    btn.style.color = 'var(--text2)';
+  }
+}
+
+function renderMarkdownSimple(md) {
+  let h = escHtml(md);
+  h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  h = h.replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  h = h.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
+// ─── API KEY MANAGER ─────────────────────────────────────────────
+async function loadApiKeys() {
+  const container = document.getElementById('st-apikeys');
+  if (!container) return;
+  try {
+    const keys = await api.apikeyList();
+    if (!keys.length) {
+      container.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--muted)">No keys saved yet.</div>';
+      return;
+    }
+    container.innerHTML = keys.map(k =>
+      `<div class="apikey-row" style="padding:6px 10px">
+        <span class="apikey-provider">${escHtml(k.provider)}</span>
+        <span class="apikey-val">${k.hasKey ? k.preview + '...' : '—'}</span>
+        <button class="stg-btn sec" style="padding:2px 8px;font-size:10px" onclick="deleteApiKeyUI('${escAttr(k.provider)}')">Remove</button>
+      </div>`).join('');
+  } catch {}
+}
+
+async function saveApiKeyUI() {
+  const provider = document.getElementById('st-apikey-provider').value;
+  const key = document.getElementById('st-apikey-val').value.trim();
+  if (!key) { showNotify('Enter a key value'); return; }
+  const ok = await api.apikeySet({ provider, key });
+  if (ok) {
+    document.getElementById('st-apikey-val').value = '';
+    showNotify('Key saved for ' + provider);
+    await loadApiKeys();
+  } else showNotify('Failed to save key');
+}
+
+async function deleteApiKeyUI(provider) {
+  if (!confirm('Remove key for ' + provider + '?')) return;
+  await api.apikeySet({ provider, key: '' });
+  showNotify('Removed key for ' + provider);
+  await loadApiKeys();
+}
+
+// ─── RECENT PROJECTS ─────────────────────────────────────────────
+async function loadRecentProjects() {
+  const container = document.getElementById('st-recent-projects');
+  if (!container) return;
+  try {
+    const list = await api.recentProjectsGet();
+    if (!list.length) { container.innerHTML = '<div class="stg-note">No recent projects.</div>'; return; }
+    container.innerHTML = list.map(d => {
+      const name = d.split(/[/\\]/).pop();
+      return `<div class="recent-proj-item" onclick="openRecentProject('${escAttr(d)}')" title="${escHtml(d)}">&#128193; ${escHtml(name)}</div>`;
+    }).join('');
+  } catch {}
+}
+
+async function openRecentProject(dir) {
+  projectDir = dir;
+  await loadProject(dir);
+  showNotify('Opened: ' + dir.split(/[/\\]/).pop());
+}
+
+// ─── UPDATE CHECKER ──────────────────────────────────────────────
+async function checkUpdatesUI() {
+  document.getElementById('st-update').textContent = 'Checking...';
+  try {
+    const info = await api.checkForUpdates();
+    if (!info) {
+      document.getElementById('st-update').textContent = 'Could not reach GitHub.';
+      return;
+    }
+    const cur = document.getElementById('st-version').textContent.replace('v', '') || '0';
+    if (info.latestVersion && info.latestVersion !== 'v' + cur) {
+      document.getElementById('st-update').textContent = 'New version available: ' + info.latestVersion;
+    } else {
+      document.getElementById('st-update').textContent = 'You are up to date!';
+    }
+  } catch { document.getElementById('st-update').textContent = 'Update check failed.'; }
+}
+
 // ─── UTILITIES ────────────────────────────────────────────────────
 function escHtml(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function escAttr(t) { return String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
@@ -1302,7 +1727,7 @@ function showNotify(msg) {
 // ─── KEYBOARD SHORTCUTS ──────────────────────────────────────────
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeOv(); if (isRecording) stopVox(); }
-  if (e.ctrlKey && e.key === 's') { e.preventDefault(); if (curV === 'files') saveEditor(); }
+  if (e.ctrlKey && e.key === 's') { e.preventDefault(); if (curV === 'files') saveEditor(); else if (curV === 'notes') saveCurrentNote(); }
   if (e.ctrlKey && e.key === 'l') { e.preventDefault(); if (curV === 'terminal') termClear(); }
   if (e.ctrlKey && e.key === '1') { e.preventDefault(); sw('chat'); }
   if (e.ctrlKey && e.key === '2') { e.preventDefault(); sw('terminal'); }
@@ -1347,6 +1772,17 @@ document.addEventListener('keydown', e => {
   } catch {}
 
   loadSessions();
+  loadFontSizePref();
+  loadThemePref();
+  loadRecentProjects();
+  loadApiKeys();
+
+  // Display app version
+  try {
+    const ver = await api.appVersion();
+    const el = document.getElementById('st-version');
+    if (el) el.textContent = 'v' + ver;
+  } catch {}
 
   api.onMaximized(m => {
     document.getElementById('btn-max').innerHTML = m ? '&#9634;' : '&#9633;';

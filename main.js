@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, clipboard, shell, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, clipboard, shell, Notification, globalShortcut, safeStorage, net } = require('electron');
 const path = require('path');
 const { spawn, execSync, exec } = require('child_process');
 const fs = require('fs');
@@ -76,7 +76,16 @@ function createTray() {
   } catch {}
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // Global hotkey: Ctrl+Alt+O to show/focus the app
+  try {
+    globalShortcut.register('CommandOrControl+Alt+O', () => {
+      if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+    });
+  } catch {}
+});
+app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch {} });
 app.on('window-all-closed', () => { killShell(); killOpenCode(); app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
@@ -637,4 +646,238 @@ ipcMain.handle('session-load-global', (_, name) => {
     const safe = name.replace(/[^a-z0-9-_]/gi, '_');
     return JSON.parse(fs.readFileSync(path.join(GLOBAL_SESSIONS_DIR, safe + '.json'), 'utf-8'));
   } catch { return null; }
+});
+
+ipcMain.handle('session-delete-global', (_, name) => {
+  try {
+    const safe = name.replace(/[^a-z0-9-_]/gi, '_');
+    fs.unlinkSync(path.join(GLOBAL_SESSIONS_DIR, safe + '.json'));
+    return true;
+  } catch { return false; }
+});
+
+// ─── API Key manager (safeStorage encryption) ────────────────────
+const API_KEYS_FILE = path.join(os.homedir(), '.opencode-desktop', 'apikeys.enc');
+
+ipcMain.handle('apikey-set', (_, { provider, key }) => {
+  try {
+    fs.mkdirSync(path.dirname(API_KEYS_FILE), { recursive: true });
+    let keys = {};
+    try {
+      if (safeStorage.isEncryptionAvailable()) {
+        const raw = fs.readFileSync(API_KEYS_FILE);
+        keys = JSON.parse(safeStorage.decryptString(raw));
+      } else {
+        keys = JSON.parse(fs.readFileSync(API_KEYS_FILE + '.plain', 'utf-8'));
+      }
+    } catch {}
+    keys[provider] = key;
+    if (safeStorage.isEncryptionAvailable()) {
+      fs.writeFileSync(API_KEYS_FILE, safeStorage.encryptString(JSON.stringify(keys)));
+    } else {
+      fs.writeFileSync(API_KEYS_FILE + '.plain', JSON.stringify(keys), 'utf-8');
+    }
+    return true;
+  } catch { return false; }
+});
+
+ipcMain.handle('apikey-get', (_, provider) => {
+  try {
+    let keys = {};
+    if (safeStorage.isEncryptionAvailable()) {
+      const raw = fs.readFileSync(API_KEYS_FILE);
+      keys = JSON.parse(safeStorage.decryptString(raw));
+    } else {
+      keys = JSON.parse(fs.readFileSync(API_KEYS_FILE + '.plain', 'utf-8'));
+    }
+    return keys[provider] || null;
+  } catch { return null; }
+});
+
+ipcMain.handle('apikey-list', () => {
+  try {
+    let keys = {};
+    if (safeStorage.isEncryptionAvailable()) {
+      const raw = fs.readFileSync(API_KEYS_FILE);
+      keys = JSON.parse(safeStorage.decryptString(raw));
+    } else {
+      keys = JSON.parse(fs.readFileSync(API_KEYS_FILE + '.plain', 'utf-8'));
+    }
+    return Object.keys(keys).map(k => ({ provider: k, hasKey: !!keys[k], preview: keys[k] ? keys[k].slice(0, 8) + '...' : null }));
+  } catch { return []; }
+});
+
+// ─── Git extended operations ──────────────────────────────────────
+ipcMain.handle('git-commit', (_, { message, all }) => {
+  if (!projectDir) return { success: false, error: 'No project' };
+  try {
+    if (all) execSync('git add -A', { cwd: projectDir });
+    const out = execSync('git commit -m ' + JSON.stringify(message), { cwd: projectDir, encoding: 'utf-8' });
+    return { success: true, output: out };
+  } catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+ipcMain.handle('git-push', (_, { remote = 'origin', branch } = {}) => {
+  if (!projectDir) return { success: false, error: 'No project' };
+  try {
+    const b = branch || execSync('git branch --show-current', { cwd: projectDir, encoding: 'utf-8' }).trim();
+    const out = execSync(`git push ${remote} ${b}`, { cwd: projectDir, encoding: 'utf-8', timeout: 30000 });
+    return { success: true, output: out };
+  } catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+ipcMain.handle('git-pull', (_, { remote = 'origin' } = {}) => {
+  if (!projectDir) return { success: false, error: 'No project' };
+  try {
+    const out = execSync(`git pull ${remote}`, { cwd: projectDir, encoding: 'utf-8', timeout: 30000 });
+    return { success: true, output: out };
+  } catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+ipcMain.handle('git-stage', (_, files) => {
+  if (!projectDir) return false;
+  try {
+    const fileArgs = Array.isArray(files) ? files.map(f => JSON.stringify(f)).join(' ') : JSON.stringify(files);
+    execSync('git add ' + fileArgs, { cwd: projectDir });
+    return true;
+  } catch { return false; }
+});
+
+ipcMain.handle('git-unstage', (_, files) => {
+  if (!projectDir) return false;
+  try {
+    const fileArgs = Array.isArray(files) ? files.map(f => JSON.stringify(f)).join(' ') : JSON.stringify(files);
+    execSync('git restore --staged ' + fileArgs, { cwd: projectDir });
+    return true;
+  } catch { return false; }
+});
+
+ipcMain.handle('git-branches', () => {
+  if (!projectDir) return [];
+  try {
+    const out = execSync('git branch -a --format=%(refname:short)', { cwd: projectDir, encoding: 'utf-8' });
+    return out.trim().split('\n').filter(Boolean).map(b => b.trim());
+  } catch { return []; }
+});
+
+ipcMain.handle('git-switch-branch', (_, name) => {
+  if (!projectDir) return { success: false };
+  try {
+    execSync('git checkout ' + JSON.stringify(name), { cwd: projectDir, encoding: 'utf-8' });
+    return { success: true };
+  } catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+ipcMain.handle('git-create-branch', (_, name) => {
+  if (!projectDir) return { success: false };
+  try {
+    execSync('git checkout -b ' + JSON.stringify(name), { cwd: projectDir, encoding: 'utf-8' });
+    return { success: true };
+  } catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+// ─── Recent projects ─────────────────────────────────────────────
+const RECENT_PROJECTS_FILE = path.join(os.homedir(), '.opencode-desktop', 'recent-projects.json');
+
+ipcMain.handle('recent-projects-get', () => {
+  try { return JSON.parse(fs.readFileSync(RECENT_PROJECTS_FILE, 'utf-8')); } catch { return []; }
+});
+
+ipcMain.handle('recent-projects-add', (_, dir) => {
+  try {
+    fs.mkdirSync(path.dirname(RECENT_PROJECTS_FILE), { recursive: true });
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(RECENT_PROJECTS_FILE, 'utf-8')); } catch {}
+    list = [dir, ...list.filter(d => d !== dir)].slice(0, 10);
+    fs.writeFileSync(RECENT_PROJECTS_FILE, JSON.stringify(list), 'utf-8');
+    return list;
+  } catch { return []; }
+});
+
+// ─── Obsidian vault search ────────────────────────────────────────
+ipcMain.handle('obsidian-search', (_, query) => {
+  if (!query) return [];
+  const q = query.toLowerCase();
+  const results = [];
+  function walk(dir, depth = 0) {
+    if (depth > 4) return;
+    try {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name.startsWith('.')) continue;
+        const fp = path.join(dir, e.name);
+        if (e.isDirectory()) { walk(fp, depth + 1); continue; }
+        if (!e.name.endsWith('.md')) continue;
+        try {
+          const content = fs.readFileSync(fp, 'utf-8');
+          if (e.name.toLowerCase().includes(q) || content.toLowerCase().includes(q)) {
+            const relPath = path.relative(OBSIDIAN_VAULT, fp);
+            const idx = content.toLowerCase().indexOf(q);
+            const snippet = idx >= 0 ? content.slice(Math.max(0, idx - 40), idx + 80).replace(/\n/g, ' ') : '';
+            results.push({ name: e.name, relPath, snippet });
+            if (results.length >= 30) return;
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+  walk(OBSIDIAN_VAULT);
+  return results;
+});
+
+// ─── Open in VS Code ─────────────────────────────────────────────
+ipcMain.handle('open-in-vscode', (_, p) => {
+  try { execSync('code ' + JSON.stringify(p || projectDir || '.'), { encoding: 'utf-8', timeout: 5000 }); return true; }
+  catch { return false; }
+});
+
+// ─── OpenCode config ─────────────────────────────────────────────
+ipcMain.handle('opencode-config-read', () => {
+  try {
+    const fp = path.join(os.homedir(), '.opencode', 'config.json');
+    return JSON.parse(fs.readFileSync(fp, 'utf-8'));
+  } catch { return null; }
+});
+
+ipcMain.handle('opencode-config-write', (_, config) => {
+  try {
+    const dir = path.join(os.homedir(), '.opencode');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
+    return true;
+  } catch { return false; }
+});
+
+// ─── App version / update check ──────────────────────────────────
+ipcMain.handle('app-version', () => {
+  try { return require('./package.json').version || '1.0.0'; } catch { return '1.0.0'; }
+});
+
+ipcMain.handle('check-for-updates', () => {
+  return new Promise(resolve => {
+    try {
+      const req = net.request('https://api.github.com/repos/eugineous/opencode-desktop/releases/latest');
+      req.setHeader('User-Agent', 'opencode-desktop');
+      let body = '';
+      req.on('response', res => {
+        res.on('data', d => { body += d.toString(); });
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            resolve({ latestVersion: data.tag_name, url: data.html_url, notes: data.body || '' });
+          } catch { resolve(null); }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.end();
+    } catch { resolve(null); }
+  });
+});
+
+// ─── File delete/rename ──────────────────────────────────────────
+ipcMain.handle('file-delete-fs', (_, p) => {
+  try { fs.unlinkSync(p); return true; } catch { return false; }
+});
+
+ipcMain.handle('file-rename-fs', (_, { from, to }) => {
+  try { fs.renameSync(from, to); return true; } catch { return false; }
 });

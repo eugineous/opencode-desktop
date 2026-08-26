@@ -108,4 +108,42 @@ contextBridge.exposeInMainWorld('api', {
   sessionSaveGlobal: (o) => ipcRenderer.invoke('session-save-global', o),
   sessionListGlobal: () => ipcRenderer.invoke('session-list-global'),
   sessionLoadGlobal: (n) => ipcRenderer.invoke('session-load-global', n),
+  sessionDeleteGlobal: (n) => ipcRenderer.invoke('session-delete-global', n),
+
+  // API Key manager (safeStorage encrypted)
+  apikeySet: (o) => ipcRenderer.invoke('apikey-set', o),
+  apikeyGet: (p) => ipcRenderer.invoke('apikey-get', p),
+  apikeyList: () => ipcRenderer.invoke('apikey-list'),
+
+  // Extended Git operations
+  gitCommitFull: (o) => ipcRenderer.invoke('git-commit', o),
+  gitPush: (o) => ipcRenderer.invoke('git-push', o),
+  gitPull: (o) => ipcRenderer.invoke('git-pull', o),
+  gitStage: (f) => ipcRenderer.invoke('git-stage', f),
+  gitUnstage: (f) => ipcRenderer.invoke('git-unstage', f),
+  gitBranches: () => ipcRenderer.invoke('git-branches'),
+  gitSwitchBranch: (n) => ipcRenderer.invoke('git-switch-branch', n),
+  gitCreateBranch: (n) => ipcRenderer.invoke('git-create-branch', n),
+
+  // Recent projects
+  recentProjectsGet: () => ipcRenderer.invoke('recent-projects-get'),
+  recentProjectsAdd: (d) => ipcRenderer.invoke('recent-projects-add', d),
+
+  // Obsidian search
+  obsidianSearch: (q) => ipcRenderer.invoke('obsidian-search', q),
+
+  // Open in VS Code
+  openInVSCode: (p) => ipcRenderer.invoke('open-in-vscode', p),
+
+  // OpenCode config
+  opencodeConfigRead: () => ipcRenderer.invoke('opencode-config-read'),
+  opencodeConfigWrite: (c) => ipcRenderer.invoke('opencode-config-write', c),
+
+  // App version / update check
+  appVersion: () => ipcRenderer.invoke('app-version'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
+  // File system delete/rename (direct fs ops)
+  fileDeleteFs: (p) => ipcRenderer.invoke('file-delete-fs', p),
+  fileRenameFs: (o) => ipcRenderer.invoke('file-rename-fs', o),
 });
