@@ -290,7 +290,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <div class="ch-empty" id="ch-empty">
           <div class="ch-eicon">&gt;_</div>
           <h2>OpenCode <span>Desktop</span></h2>
-          <p>Type your message below and it goes straight to OpenCode running in the terminal. Switch to the <strong style="color:var(--accent)">OpenCode</strong> tab in the sidebar to see responses.</p>
+          <p>Type a message and hit send — it goes straight into OpenCode. The app will switch to the terminal automatically so you see the response in real time.</p>
         </div>
       </div>
       <div class="ch-inp-wrap">
@@ -776,17 +776,36 @@ async function send() {
   addMsg('user', text);
 
   if (!termConnected || !ocLaunched) {
-    addMsg('assistant', 'OpenCode is not running yet. Switch to the **OpenCode** tab in the sidebar — it will launch automatically. Then come back and try again.');
+    const msgEl = addMsgEl('assistant', '<div style="display:flex;align-items:center;gap:10px;padding:4px 0"><span style="font-size:18px">⚠️</span><div><strong>OpenCode not running.</strong><br><button onclick="sw(\'terminal\')" style="margin-top:6px;padding:4px 12px;background:var(--accent);border:none;border-radius:5px;color:#fff;cursor:pointer;font-size:11px;font-weight:600">Open Terminal →</button></div></div>', true);
     return;
   }
 
-  // Route text directly to the running OpenCode terminal process
+  // Route to OpenCode and switch to terminal to see response
   const sent = await api.termSendText(text + '\n');
   if (sent) {
-    addMsg('assistant', '↗ Sent to OpenCode. Switch to the **OpenCode** tab to see the response.');
+    // Auto-switch to terminal so user sees OpenCode responding
+    sw('terminal');
+    if (term) setTimeout(() => { fitAddon?.fit(); term.focus(); }, 60);
+    // Save this session
+    chatMessages[chatMessages.length - 1].sent = true;
+    await api.sessionSaveGlobal({ name: currentSession, messages: chatMessages }).catch(() => {});
   } else {
-    addMsg('assistant', 'Could not send — terminal is not connected. Click Restart in the OpenCode tab.');
+    addMsg('assistant', '⚠ Terminal not connected — click Restart in the OpenCode tab.');
   }
+}
+
+function addMsgEl(role, html, isHtml) {
+  const empty = document.getElementById('ch-empty');
+  if (empty) empty.style.display = 'none';
+  const container = document.getElementById('ch-msgs');
+  const msg = document.createElement('div');
+  msg.className = 'ch-msg ' + role;
+  if (isHtml) msg.innerHTML = html;
+  else msg.textContent = html;
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+  chatMessages.push({ role, text: html, t: Date.now() });
+  return msg;
 }
 
 function sendHint(el) {
