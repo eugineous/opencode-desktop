@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:; img-src 'self' data:;">
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<title>OpenCode</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0a0a0a;--surface:#111118;--surface2:#18181f;--card:#1e1e2a;
+--hover:#282838;--border:#2a2a3a;--text:#e8e8ec;--text2:#a0a0aa;
+--muted:#666680;--accent:#d97706;--accent2:#f59e0b;--accentDim:#7c4a0a;
+--accentBg:rgba(217,119,6,.08);--purple:#7c3aed;--purpleDim:#4c2590;
+--green:#22c55e;--greenDim:#14532d;--red:#ef4444;--redDim:#7f1d1d;
+--blue:#3b82f6;--blueDim:#1e3a5f;
+--r:8px;--rl:12px
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);user-select:none}
+
+/* ─── TITLEBAR ─── */
+.tb{height:36px;background:var(--surface);display:flex;align-items:center;padding:0 8px;border-bottom:1px solid var(--border);-webkit-app-region:drag;z-index:50}
+.tb-l{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.tb-logo{width:22px;height:22px;background:var(--accentDim);border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:'Cascadia Mono','Fira Code',monospace;font-size:9px;font-weight:800;color:var(--accent);flex-shrink:0}
+.tb-name{font-size:11.5px;color:var(--text);font-weight:600;flex-shrink:0}
+.tb-sep{color:var(--border);font-size:11px;flex-shrink:0}
+.tb-proj{font-size:10.5px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:2px 6px;border-radius:4px;max-width:300px}
+.tb-proj:hover{background:var(--hover);color:var(--accent)}
+.tb-r{display:flex;gap:2px;-webkit-app-region:no-drag;flex-shrink:0}
+.tb-b{width:34px;height:26px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:4px;font-size:13px;display:flex;align-items:center;justify-content:center}
+.tb-b:hover{background:var(--hover);color:var(--text)}
+.tb-b.x:hover{background:var(--red);color:#fff}
+
+/* ─── LAYOUT ─── */
+.lay{display:flex;height:calc(100vh - 36px)}
+
+/* ─── SIDEBAR ─── */
+.sb{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.sb.shrunk{width:46px}
+.sb.shrunk .sb-lbl,.sb.shrunk .sb-proj-list,.sb.shrunk .sb-search,.sb.shrunk .nv-lbl,
+.sb.shrunk .sb-sec,.sb.shrunk .tree-list,.sb.shrunk .git-panel{display:none}
+.sb-top{padding:8px;display:flex;align-items:center;justify-content:space-between}
+.sb-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:700}
+.sb-tog{width:22px;height:22px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:4px;font-size:10px;display:flex;align-items:center;justify-content:center}
+.sb-tog:hover{background:var(--hover);color:var(--text)}
+.nv{padding:2px 4px;display:flex;flex-direction:column;gap:1px}
+.nv-b{display:flex;align-items:center;gap:7px;padding:6px 8px;border:none;background:transparent;color:var(--text2);cursor:pointer;border-radius:var(--r);font-size:11.5px;text-align:left;width:100%;transition:all .1s}
+.nv-b:hover{background:var(--hover);color:var(--text)}
+.nv-b.on{background:var(--accentBg);color:var(--accent)}
+.nv-i{width:16px;text-align:center;font-size:12px;flex-shrink:0}
+.nv-lbl{white-space:nowrap}
+.sb-search{margin:4px 6px;padding:5px 8px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);width:calc(100% - 12px);outline:none;color:var(--text2);font-size:11px}
+.sb-search:focus{border-color:var(--accent)}
+.sb-search::placeholder{color:var(--muted)}
+.sb-proj-btn{margin:2px 6px 4px;padding:6px;background:var(--card);border:1px dashed var(--border);border-radius:var(--r);color:var(--text2);cursor:pointer;font-size:11px;text-align:center;transition:all .12s;display:flex;align-items:center;justify-content:center;gap:5px}
+.sb-proj-btn:hover{border-color:var(--accent);color:var(--accent)}
+.sb-proj-btn.ok{border-style:solid;border-color:var(--green);color:var(--green)}
+.sb-sec{padding:4px 8px 2px;font-size:8.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;margin-top:4px}
+
+/* File tree */
+.tree-list{flex:1;overflow-y:auto;padding:0 3px}
+.tree-item{display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .08s}
+.tree-item:hover{background:var(--hover);color:var(--text)}
+.tree-item.on{background:var(--accentBg);color:var(--accent)}
+.tree-item .ico{width:14px;text-align:center;flex-shrink:0;font-size:10px;opacity:.6}
+.tree-item.folder .ico{opacity:.8}
+.tree-indent{display:inline-block;width:14px;flex-shrink:0}
+
+/* Git sidebar panel */
+.git-panel{padding:4px 6px;font-size:10.5px;color:var(--text2);max-height:140px;overflow-y:auto}
+.git-branch{color:var(--accent);font-weight:600;padding:2px 0}
+.git-file{display:flex;align-items:center;gap:4px;padding:1px 0}
+.git-file .st{font-family:'Cascadia Mono',monospace;font-size:9px;font-weight:700;width:14px;text-align:center;flex-shrink:0}
+.git-file .st.m{color:var(--red)}
+.git-file .st.a{color:var(--green)}
+.git-file .st.d{color:var(--muted)}
+.git-file .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ─── CONTENT ─── */
+.ct{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0}
+.vw{display:none;flex:1;flex-direction:column;overflow:hidden}
+.vw.on{display:flex}
+
+/* ─── CHAT ─── */
+.ch-msgs{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px}
+.ch-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center}
+.ch-eicon{width:56px;height:56px;background:var(--accentDim);border-radius:14px;display:flex;align-items:center;justify-content:center;font-family:'Cascadia Mono',monospace;font-size:18px;font-weight:800;color:var(--accent);margin-bottom:16px}
+.ch-empty h2{font-size:18px;font-weight:700;margin-bottom:4px}
+.ch-empty h2 span{color:var(--accent)}
+.ch-empty p{color:var(--text2);font-size:12px;max-width:400px;line-height:1.5}
+.ch-msg{display:flex;gap:8px;max-width:85%}
+.ch-msg.user{align-self:flex-end;flex-direction:row-reverse}
+.ch-msg.bot{align-self:flex-start}
+.ch-av{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0;font-family:'Cascadia Mono',monospace}
+.ch-msg.user .ch-av{background:var(--purpleDim);color:var(--purple)}
+.ch-msg.bot .ch-av{background:var(--accentDim);color:var(--accent)}
+.ch-bbl{padding:9px 13px;border-radius:var(--rl);font-size:12px;line-height:1.6;word-wrap:break-word;white-space:pre-wrap}
+.ch-msg.user .ch-bbl{background:var(--purpleDim);color:var(--text);border-bottom-right-radius:3px}
+.ch-msg.bot .ch-bbl{background:var(--card);color:var(--text2);border-bottom-left-radius:3px}
+.ch-bbl code{background:var(--surface2);padding:1px 4px;border-radius:3px;font-family:'Cascadia Mono',monospace;font-size:11px;color:var(--accent)}
+.ch-bbl pre{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px;margin:6px 0;overflow-x:auto}
+.ch-bbl pre code{background:transparent;padding:0;color:var(--text);font-size:11px}
+.ch-typing{display:flex;gap:3px;padding:4px 0}
+.ch-typing span{width:4px;height:4px;background:var(--muted);border-radius:50%;animation:tp 1.4s infinite}
+.ch-typing span:nth-child(2){animation-delay:.2s}
+.ch-typing span:nth-child(3){animation-delay:.4s}
+@keyframes tp{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+/* Chat input */
+.ch-inp-wrap{padding:8px 14px 12px;border-top:1px solid var(--border);background:var(--surface)}
+.ch-inp-row{display:flex;gap:6px;align-items:flex-end}
+.ch-inp{flex:1;background:var(--card);border:1px solid var(--border);border-radius:var(--rl);padding:9px 12px;color:var(--text);font-size:12px;font-family:inherit;resize:none;outline:none;min-height:38px;max-height:140px;line-height:1.4}
+.ch-inp:focus{border-color:var(--accent)}
+.ch-inp::placeholder{color:var(--muted)}
+.ch-snd,.ch-vox{width:38px;height:38px;border:none;border-radius:var(--r);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .12s;flex-shrink:0}
+.ch-snd{background:var(--accent);color:#fff}
+.ch-snd:hover{background:var(--accent2)}
+.ch-snd:disabled{opacity:.3;cursor:not-allowed}
+.ch-vox{background:var(--card);border:1px solid var(--border);color:var(--text2)}
+.ch-vox:hover{border-color:var(--accent);color:var(--accent)}
+.ch-vox.rec{background:var(--red);border-color:var(--red);color:#fff;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.ch-hints{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.ch-h{padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:14px;font-size:10px;color:var(--muted);cursor:pointer;transition:all .1s}
+.ch-h:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ─── TERMINAL ─── */
+.tw{flex:1;position:relative;overflow:hidden}
+#terminal{width:100%;height:100%;padding:2px}
+.t-bar{padding:5px 10px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--muted)}
+.t-dot{width:5px;height:5px;border-radius:50%;background:var(--muted)}
+.t-dot.on{background:var(--green)}
+.t-bar-actions{margin-left:auto;display:flex;gap:4px}
+.t-bar-btn{padding:2px 8px;background:var(--card);border:1px solid var(--border);border-radius:4px;color:var(--text2);font-size:10px;cursor:pointer}
+.t-bar-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ─── GIT VIEW ─── */
+.gv{flex:1;overflow-y:auto;padding:14px}
+.gv h3{font-size:14px;font-weight:700;margin-bottom:10px;color:var(--accent)}
+.gv-sec{margin-bottom:16px}
+.gv-sec h4{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:6px;font-weight:700}
+.gv-file{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;font-size:12px;cursor:pointer;transition:background .08s}
+.gv-file:hover{background:var(--hover)}
+.gv-file .gs{font-family:'Cascadia Mono',monospace;font-size:10px;font-weight:700;width:16px;text-align:center;flex-shrink:0}
+.gv-file .gs.mod{color:var(--accent)}
+.gv-file .gs.new{color:var(--green)}
+.gv-file .gs.del{color:var(--red)}
+.gv-file .gn{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gv-log{font-size:11.5px}
+.gv-log-entry{padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:baseline}
+.gv-log-hash{font-family:'Cascadia Mono',monospace;font-size:10px;color:var(--accent);flex-shrink:0}
+.gv-log-msg{color:var(--text2)}
+.gv-empty{color:var(--muted);font-size:12px;padding:20px;text-align:center}
+.gv-diff{font-family:'Cascadia Mono',monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;color:var(--text2);padding:10px;background:var(--surface);border-radius:var(--r);overflow-x:auto}
+.gv-diff .add{color:var(--green)}
+.gv-diff .del{color:var(--red)}
+.gv-diff .hdr{color:var(--accent);font-weight:600}
+
+/* ─── NOTES ─── */
+.nh{padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.nh h3{font-size:13px;font-weight:600;flex:1}
+.nh-btn{padding:4px 10px;background:var(--accent);border:none;border-radius:5px;color:#fff;font-size:10.5px;cursor:pointer;font-weight:600}
+.nh-btn:hover{background:var(--accent2)}
+.nc{flex:1;padding:16px;overflow-y:auto;font-family:'Cascadia Mono','Consolas',monospace;font-size:12px;line-height:1.7;color:var(--text2);white-space:pre-wrap;word-wrap:break-word}
+.nc-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+
+/* ─── SETTINGS ─── */
+.st{padding:18px;overflow-y:auto}
+.st h3{font-size:15px;font-weight:700;margin-bottom:12px}
+.stg{margin-bottom:18px}
+.stg label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:600}
+.stg-in{width:100%;padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:12px;outline:none}
+.stg-in:focus{border-color:var(--accent)}
+.stg-note{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.5}
+.stg-row{display:flex;gap:8px;align-items:center}
+.stg-btn{padding:6px 12px;background:var(--accent);border:none;border-radius:var(--r);color:#fff;font-size:11px;cursor:pointer;font-weight:600}
+.stg-btn:hover{background:var(--accent2)}
+.stg-btn.sec{background:var(--card);border:1px solid var(--border);color:var(--text2)}
+.stg-btn.sec:hover{background:var(--hover)}
+.stg-key{font-family:'Cascadia Mono',monospace;font-size:10.5px;background:var(--surface2);padding:1px 5px;border-radius:3px;color:var(--accent)}
+
+/* ─── STATUS BAR ─── */
+.st-bar{height:24px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:10px;font-size:10px;color:var(--muted)}
+.st-dot{width:5px;height:5px;border-radius:50%;background:var(--muted);flex-shrink:0}
+.st-dot.on{background:var(--green);box-shadow:0 0 4px rgba(34,197,94,.4)}
+.st-sp{flex:1}
+
+/* ─── OVERLAY ─── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);display:none;z-index:100;align-items:center;justify-content:center}
+.ov.open{display:flex}
+.ov-p{width:700px;max-height:80vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 16px 50px rgba(0,0,0,.5)}
+.ov-h{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.ov-h h3{font-size:13px;font-weight:600}
+.ov-x{width:24px;height:24px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:5px;font-size:14px;display:flex;align-items:center;justify-content:center}
+.ov-x:hover{background:var(--hover);color:var(--text)}
+.ov-b{flex:1;overflow-y:auto}
+#editor{width:100%;min-height:380px;background:var(--bg);border:none;padding:14px;color:var(--text);font-family:'Cascadia Mono','Consolas',monospace;font-size:12px;line-height:1.6;resize:vertical}
+#editor:focus{outline:none}
+.ov-f{padding:8px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:6px}
+.nb{padding:5px 11px;border-radius:5px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text2);transition:all .12s}
+.nb:hover{background:var(--hover);color:var(--text)}
+.nb.pr{background:var(--accent);border-color:var(--accent);color:#fff}
+.nb.pr:hover{background:var(--accent2)}
+
+/* ─── LOADING ─── */
+.load{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .3s}
+.load.done{opacity:0;pointer-events:none}
+.load-icon{width:52px;height:52px;background:var(--accentDim);border-radius:13px;display:flex;align-items:center;justify-content:center;font-family:'Cascadia Mono',monospace;font-size:17px;font-weight:800;color:var(--accent);margin-bottom:14px;animation:loadpulse 2s infinite}
+@keyframes loadpulse{0%,100%{box-shadow:0 0 0 0 rgba(217,119,6,.3)}50%{box-shadow:0 0 0 10px rgba(217,119,6,0)}}
+.load p{color:var(--text2);font-size:12px}
+.load small{color:var(--muted);font-size:10.5px;margin-top:5px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* Session list in chat */
+.session-bar{padding:4px 14px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:4px;align-items:center;overflow-x:auto}
+.session-pill{padding:3px 10px;background:var(--card);border:1px solid var(--border);border-radius:14px;font-size:10px;color:var(--text2);cursor:pointer;white-space:nowrap;transition:all .1s}
+.session-pill:hover{border-color:var(--accent);color:var(--accent)}
+.session-pill.on{background:var(--accentBg);border-color:var(--accent);color:var(--accent)}
+.session-pill.new{border-style:dashed;color:var(--muted)}
+.session-pill.new:hover{border-color:var(--accent);color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="load" id="loader">
+  <div class="load-icon">&gt;_</div>
+  <p id="load-text">Initializing OpenCode...</p>
+  <small id="load-sub">Setting up workspace</small>
+</div>
+
+<!-- TITLEBAR -->
+<div class="tb">
+  <div class="tb-l">
+    <div class="tb-logo">&gt;_</div>
+    <span class="tb-name">OpenCode</span>
+    <span class="tb-sep">&nbsp;|&nbsp;</span>
+    <span class="tb-proj" id="tb-proj" title="Click to change project" onclick="selectProject()">No project</span>
+  </div>
+  <div class="tb-r">
+    <button class="tb-b" onclick="api.minimize()" title="Minimize">&#8722;</button>
+    <button class="tb-b" onclick="api.maximize()" title="Maximize" id="btn-max">&#9633;</button>
+    <button class="tb-b x" onclick="api.close()" title="Close">&#215;</button>
+  </div>
+</div>
+
+<div class="lay">
+  <!-- SIDEBAR -->
+  <div class="sb" id="sb">
+    <div class="sb-top">
+      <span class="sb-lbl">NAVIGATE</span>
+      <button class="sb-tog" onclick="toggleSB()">&#9664;</button>
+    </div>
+    <div class="nv">
+      <button class="nv-b" data-v="chat" onclick="sw('chat')"><span class="nv-i">&#128172;</span><span class="nv-lbl">Chat</span></button>
+      <button class="nv-b on" data-v="terminal" onclick="sw('terminal');initTerm()"><span class="nv-i">&#128187;</span><span class="nv-lbl">OpenCode</span></button>
+      <button class="nv-b" data-v="files" onclick="sw('files')"><span class="nv-i">&#128193;</span><span class="nv-lbl">Files</span></button>
+      <button class="nv-b" data-v="git" onclick="sw('git');loadGit()"><span class="nv-i">&#128196;</span><span class="nv-lbl">Git</span></button>
+      <button class="nv-b" data-v="notes" onclick="sw('notes');loadObsidianNotes()"><span class="nv-i">&#128221;</span><span class="nv-lbl">Notes</span></button>
+      <button class="nv-b" data-v="settings" onclick="sw('settings')"><span class="nv-i">&#9881;</span><span class="nv-lbl">Settings</span></button>
+    </div>
+
+    <div class="sb-sec">PROJECT FILES</div>
+    <input class="sb-search" id="tree-search" placeholder="Filter files..." oninput="filterTree(this.value)">
+    <div class="sb-proj-btn" id="proj-btn" onclick="selectProject()"><span>No project open</span></div>
+    <div class="tree-list" id="tree-list"></div>
+
+    <div class="sb-sec">GIT</div>
+    <div class="git-panel" id="git-panel">
+      <div class="git-branch" id="git-branch">--</div>
+      <div id="git-files-mini"></div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="ct">
+
+    <!-- CHAT VIEW -->
+    <div class="vw" id="v-chat">
+      <div class="session-bar" id="session-bar">
+        <span class="session-pill new" onclick="newSession()">+ New</span>
+      </div>
+      <div class="ch-msgs" id="ch-msgs">
+        <div class="ch-empty" id="ch-empty">
+          <div class="ch-eicon">&gt;_</div>
+          <h2>OpenCode <span>Desktop</span></h2>
+          <p>Type your message below and it goes straight to OpenCode running in the terminal. Switch to the <strong style="color:var(--accent)">OpenCode</strong> tab in the sidebar to see responses.</p>
+        </div>
+      </div>
+      <div class="ch-inp-wrap">
+        <div class="ch-hints" id="ch-hints">
+          <span class="ch-h" onclick="sendHint(this)">Help me debug this code</span>
+          <span class="ch-h" onclick="sendHint(this)">Explain how this project works</span>
+          <span class="ch-h" onclick="sendHint(this)">Write a test for this function</span>
+          <span class="ch-h" onclick="sendHint(this)">Refactor this to be more clean</span>
+        </div>
+        <div class="ch-inp-row">
+          <textarea class="ch-inp" id="ch-inp" placeholder="Ask OpenCode anything about your code..." rows="1" onkeydown="hKey(event)" oninput="aGrow(this)"></textarea>
+          <button class="ch-vox" id="vox" onclick="togVox()" title="Voice dictation">&#127908;</button>
+          <button class="ch-snd" id="snd" onclick="send()" disabled>&#10148;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TERMINAL VIEW -->
+    <div class="vw on" id="v-terminal">
+      <div class="t-bar">
+        <div class="t-dot" id="t-dot"></div>
+        <span id="t-st">Starting OpenCode...</span>
+        <div class="t-bar-actions">
+          <button class="t-bar-btn" onclick="launchOpenCode()" id="launch-btn" style="background:var(--accentBg);border-color:var(--accent);color:var(--accent)">&#9654; Launch OpenCode</button>
+          <button class="t-bar-btn" onclick="termClear()">Clear</button>
+          <button class="t-bar-btn" onclick="termReconnect()">Restart</button>
+        </div>
+      </div>
+      <div class="tw"><div id="terminal"></div></div>
+    </div>
+
+    <!-- FILES VIEW -->
+    <div class="vw" id="v-files">
+      <div class="nh">
+        <h3 id="file-title">Select a file</h3>
+        <button class="nh-btn" id="file-edit-btn" onclick="editFile()" style="display:none">Edit</button>
+      </div>
+      <div class="nc" id="file-display"><div class="nc-empty">Select a file from the sidebar.</div></div>
+    </div>
+
+    <!-- GIT VIEW -->
+    <div class="vw" id="v-git">
+      <div class="gv" id="git-view">
+        <h3>Git</h3>
+        <div id="git-content"><div class="gv-empty">Loading git status...</div></div>
+      </div>
+    </div>
+
+    <!-- NOTES VIEW -->
+    <div class="vw" id="v-notes">
+      <div style="display:flex;height:100%;overflow:hidden">
+        <div id="notes-sidebar" style="width:220px;min-width:140px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0">
+          <div class="nh" style="flex-shrink:0">
+            <h3 style="font-size:11px">Obsidian Vault</h3>
+            <button class="nh-btn" onclick="newObsidianNote()">+ New</button>
+          </div>
+          <div id="notes-list" style="flex:1;overflow-y:auto;padding:4px 0;font-size:11px"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+          <div class="nh" style="flex-shrink:0">
+            <h3 id="note-title" style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Select a note</h3>
+            <button class="nh-btn" onclick="saveCurrentNote()" id="note-save-btn" style="display:none">Save</button>
+            <button class="nh-btn" onclick="exportNoteToObsidian()" id="note-export-btn" style="display:none;background:var(--surface2);color:var(--text)">&#8599; Export</button>
+          </div>
+          <textarea id="note-editor" class="nc" style="resize:none;border:none;outline:none;background:var(--bg);width:100%;box-sizing:border-box;font-family:'Cascadia Mono','Consolas',monospace" placeholder="Select a note from the list, or create a new one..." oninput="onNoteEdit()"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div class="vw" id="v-settings">
+      <div class="st" style="overflow-y:auto">
+        <h3>Settings</h3>
+
+        <div class="stg">
+          <label>Project Directory</label>
+          <div class="stg-row">
+            <input class="stg-in" id="st-proj" readonly placeholder="Click Browse to select...">
+            <button class="stg-btn sec" onclick="selectProject()">Browse</button>
+          </div>
+          <div class="stg-note" id="st-git-status" style="margin-top:6px"></div>
+          <div class="stg-row" style="margin-top:6px;gap:6px">
+            <button class="stg-btn sec" onclick="initGitRepo()" id="btn-git-init" style="display:none">Init Git Repo</button>
+            <button class="stg-btn sec" onclick="openInExplorer()">Open Folder</button>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>Obsidian Vault</label>
+          <div class="stg-note" id="st-obsidian-path" style="color:var(--accent);font-size:11px;word-break:break-all">Loading...</div>
+          <div class="stg-row" style="margin-top:6px;gap:6px">
+            <button class="stg-btn sec" onclick="openObsidianVault()">Open Vault</button>
+            <button class="stg-btn sec" onclick="sw('notes');loadObsidianNotes()">Browse Notes</button>
+            <button class="stg-btn sec" onclick="exportSessionToObsidian()">Export Session &#8599;</button>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>OpenCode CLI</label>
+          <div class="stg-note" id="st-oc">Checking...</div>
+          <div class="stg-row" style="margin-top:6px;gap:6px">
+            <button class="stg-btn sec" onclick="connectAI()" title="Types /connect into OpenCode to add an AI provider">Connect AI Provider</button>
+            <button class="stg-btn sec" onclick="sw('terminal')" title="Go to OpenCode terminal">Go to OpenCode</button>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>Session History</label>
+          <div class="stg-note">Sessions save locally and can be exported to Obsidian vault.</div>
+          <div class="stg-row" style="margin-top:6px;gap:6px">
+            <button class="stg-btn sec" onclick="exportSessionToObsidian()">Save Chat to Obsidian</button>
+            <button class="stg-btn sec" onclick="showAllSessions()">View All Sessions</button>
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>Keyboard Shortcuts</label>
+          <div class="stg-note" style="line-height:1.8">
+            <span class="stg-key">Enter</span> Send &nbsp;
+            <span class="stg-key">Shift+Enter</span> New line &nbsp;
+            <span class="stg-key">Ctrl+L</span> Clear terminal<br>
+            <span class="stg-key">Ctrl+1-5</span> Switch views &nbsp;
+            <span class="stg-key">Ctrl+P</span> Open project &nbsp;
+            <span class="stg-key">Ctrl+S</span> Save note/file<br>
+            <span class="stg-key">Ctrl+T</span> Terminal &nbsp;
+            <span class="stg-key">Ctrl+N</span> New session &nbsp;
+            <span class="stg-key">Esc</span> Close overlays
+          </div>
+        </div>
+
+        <div class="stg">
+          <label>System Info</label>
+          <div class="stg-note" id="st-sys">Loading...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="st-bar">
+      <div class="st-dot" id="status-dot"></div>
+      <span id="status-text">Starting...</span>
+      <span class="st-sp"></span>
+      <span id="status-project"></span>
+      <span id="status-branch" style="color:var(--accent)"></span>
+    </div>
+  </div>
+</div>
+
+<!-- EDITOR OVERLAY -->
+<div class="ov" id="ov">
+  <div class="ov-p">
+    <div class="ov-h"><h3 id="ov-title">Edit</h3><button class="ov-x" onclick="closeOv()">&#215;</button></div>
+    <div class="ov-b"><textarea id="editor" spellcheck="false"></textarea></div>
+    <div class="ov-f">
+      <button class="nb" onclick="closeOv()">Cancel</button>
+      <button class="nb pr" onclick="saveEditor()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script>
+let term = null, fitAddon = null;
+let projectDir = null;
+let fileTree = [];
+let curFile = null, curFileContent = '';
+let curV = 'terminal';
+let chatMessages = [];
+let currentSession = 'default';
+let isRecording = false;
+let recognition = null;
+let termConnected = false;
+let ocLaunched = false;
+let waitingForShell = false;
+let shellLaunchTimer = null;
+let isAlwaysOnTop = false;
+
+// ─── NAV ──────────────────────────────────────────────────────────
+function sw(v) {
+  curV = v;
+  document.querySelectorAll('.vw').forEach(e => e.classList.remove('on'));
+  document.getElementById('v-' + v).classList.add('on');
+  document.querySelectorAll('.nv-b').forEach(b => b.classList.remove('on'));
+  document.querySelector('[data-v="' + v + '"]').classList.add('on');
+  if (v === 'terminal' && term) setTimeout(() => { fitAddon?.fit(); term.focus(); }, 50);
+}
+
+function toggleSB() {
+  const s = document.getElementById('sb');
+  s.classList.toggle('shrunk');
+  s.querySelector('.sb-tog').innerHTML = s.classList.contains('shrunk') ? '&#9654;' : '&#9664;';
+}
+
+function setStatus(t, on) {
+  document.getElementById('status-text').textContent = t;
+  document.getElementById('status-dot').className = 'st-dot' + (on ? ' on' : '');
+}
+
+// ─── PROJECT ──────────────────────────────────────────────────────
+async function selectProject() {
+  const dir = await api.projectSelect();
+  if (dir) {
+    projectDir = dir;
+    await loadProject(dir);
+  }
+}
+
+async function loadProject(dir) {
+  projectDir = dir;
+  const name = dir.split(/[/\\]/).pop();
+  document.getElementById('tb-proj').textContent = name;
+  document.getElementById('tb-proj').title = dir;
+  document.getElementById('st-proj').value = dir;
+  document.getElementById('status-project').textContent = name;
+  document.getElementById('proj-btn').innerHTML = '<span>' + name + '</span>';
+  document.getElementById('proj-btn').classList.add('ok');
+
+  await api.projectInitData();
+  await loadFileTree();
+  await loadGitMini();
+  setProjectStatus(true);
+
+  // Update settings panel git status
+  try {
+    const isRepo = await api.gitIsRepo();
+    const initBtn = document.getElementById('btn-git-init');
+    const statusEl = document.getElementById('st-git-status');
+    if (isRepo) {
+      const branch = await api.gitBranch();
+      if (statusEl) statusEl.textContent = '✓ Git repo — branch: ' + (branch.current || 'unknown');
+      if (initBtn) initBtn.style.display = 'none';
+    } else {
+      if (statusEl) statusEl.textContent = '⚠ Not a git repository';
+      if (initBtn) initBtn.style.display = '';
+    }
+  } catch {}
+}
+
+function setProjectStatus(ok) {
+  const dot = document.getElementById('status-dot');
+  if (ok) { dot.className = 'st-dot on'; }
+}
+
+// ─── FILE TREE ────────────────────────────────────────────────────
+async function loadFileTree() {
+  if (!projectDir) return;
+  fileTree = await api.treeRead(projectDir);
+  renderTree(fileTree, document.getElementById('tree-list'), 0);
+}
+
+function renderTree(items, container, depth) {
+  container.innerHTML = '';
+  function render(items, parent, level) {
+    for (const item of items) {
+      const el = document.createElement('div');
+      el.className = 'tree-item' + (item.type === 'folder' ? ' folder' : '');
+      el.style.paddingLeft = (6 + level * 12) + 'px';
+
+      let icon = getFileIcon(item);
+      el.innerHTML = '<span class="ico">' + icon + '</span>' + escHtml(item.name);
+
+      if (item.type === 'file') {
+        el.onclick = () => openFile(item.fullPath, item.name);
+      } else if (item.type === 'folder' && item.children) {
+        let collapsed = false;
+        const childContainer = document.createElement('div');
+        childContainer.style.display = 'block';
+        el.onclick = (e) => {
+          e.stopPropagation();
+          collapsed = !collapsed;
+          childContainer.style.display = collapsed ? 'none' : 'block';
+          el.querySelector('.ico').textContent = collapsed ? '&#9654;' : (item.name === 'node_modules' ? '&#128230;' : '&#128194;');
+        };
+        parent.appendChild(el);
+        parent.appendChild(childContainer);
+        render(item.children, childContainer, level + 1);
+        continue;
+      }
+      parent.appendChild(el);
+    }
+  }
+  render(items, container, 0);
+}
+
+function getFileIcon(item) {
+  if (item.type === 'folder') return '&#128194;';
+  const ext = (item.ext || '').toLowerCase();
+  const icons = {
+    '.js': '&#127312;', '.ts': '&#127319;', '.tsx': '&#127319;', '.jsx': '&#127312;',
+    '.py': '&#128013;', '.rs': '&#9881;', '.go': '&#128071;',
+    '.html': '&#127760;', '.css': '&#127912;', '.json': '&#128196;',
+    '.md': '&#128221;', '.txt': '&#128196;', '.yml': '&#128196;', '.yaml': '&#128196;',
+    '.sh': '&#128187;', '.bash': '&#128187;',
+    '.png': '&#127748;', '.jpg': '&#127748;', '.svg': '&#127912;',
+  };
+  return icons[ext] || '&#128196;';
+}
+
+function filterTree(q) {
+  if (!q) { renderTree(fileTree, document.getElementById('tree-list'), 0); return; }
+  const lower = q.toLowerCase();
+  const filtered = filterItems(fileTree, lower);
+  renderTree(filtered, document.getElementById('tree-list'), 0);
+}
+
+function filterItems(items, query) {
+  const result = [];
+  for (const item of items) {
+    if (item.type === 'folder') {
+      const children = item.children ? filterItems(item.children, query) : [];
+      if (children.length > 0 || item.name.toLowerCase().includes(query)) {
+        result.push({ ...item, children });
+      }
+    } else if (item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query)) {
+      result.push(item);
+    }
+  }
+  return result;
+}
+
+// ─── FILE OPERATIONS ──────────────────────────────────────────────
+async function openFile(fullPath, name) {
+  const content = await api.readFile(fullPath);
+  if (content === null) return;
+  curFile = fullPath;
+  curFileContent = content;
+  sw('files');
+  document.getElementById('file-title').textContent = name || fullPath.split(/[/\\]/).pop();
+  document.getElementById('file-display').textContent = content;
+  document.getElementById('file-edit-btn').style.display = '';
+}
+
+function editFile() {
+  if (!curFile) return;
+  document.getElementById('ov-title').textContent = curFile.split(/[/\\]/).pop();
+  document.getElementById('editor').value = curFileContent;
+  document.getElementById('ov').classList.add('open');
+}
+
+function closeOv() { document.getElementById('ov').classList.remove('open'); }
+
+async function saveEditor() {
+  if (!curFile) return;
+  const content = document.getElementById('editor').value;
+  await api.writeFile(curFile, content);
+  curFileContent = content;
+  document.getElementById('file-display').textContent = content;
+  closeOv();
+  showNotify('File saved');
+}
+
+// ─── GIT ──────────────────────────────────────────────────────────
+async function loadGitMini() {
+  const isRepo = await api.gitIsRepo();
+  if (!isRepo) {
+    document.getElementById('git-branch').textContent = 'Not a git repo';
+    document.getElementById('git-files-mini').innerHTML = '';
+    document.getElementById('status-branch').textContent = '';
+    return;
+  }
+
+  const branch = await api.gitBranch();
+  document.getElementById('git-branch').textContent = branch.current || 'detached';
+  document.getElementById('status-branch').textContent = (branch.current || '');
+
+  const status = await api.gitStatus();
+  let html = '';
+  if (status && status.length > 0) {
+    for (const f of status.slice(0, 8)) {
+      const cls = f.status === 'M' ? 'm' : (f.status === 'A' ? 'a' : 'd');
+      html += '<div class="git-file"><span class="st ' + cls + '">' + f.status + '</span><span class="nm">' + escHtml(f.file.split(/[/\\]/).pop()) + '</span></div>';
+    }
+    if (status.length > 8) html += '<div style="color:var(--muted);font-size:9px;padding:2px 0">+' + (status.length - 8) + ' more</div>';
+  }
+  document.getElementById('git-files-mini').innerHTML = html;
+}
+
+async function loadGit() {
+  const isRepo = await api.gitIsRepo();
+  const container = document.getElementById('git-content');
+  if (!isRepo) { container.innerHTML = '<div class="gv-empty">Not a git repository.</div>'; return; }
+
+  const branch = await api.gitBranch();
+  const status = await api.gitStatus();
+  const log = await api.gitLog(15);
+  const diff = await api.gitDiff();
+
+  let html = '';
+  html += '<div class="gv-sec"><h4>Branch</h4><div style="color:var(--accent);font-size:12px;font-weight:600">' + escHtml(branch.current || 'detached') + '</div></div>';
+
+  if (status && status.length) {
+    html += '<div class="gv-sec"><h4>Changes (' + status.length + ')</h4>';
+    for (const f of status) {
+      const cls = f.status === 'M' ? 'mod' : (f.status === 'A' ? 'new' : 'del');
+      html += '<div class="gv-file" onclick="viewGitDiff(\'' + escAttr(f.file) + '\')"><span class="gs ' + cls + '">' + f.status + '</span><span class="gn">' + escHtml(f.file) + '</span></div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="gv-sec"><div class="gv-empty">Working tree clean</div></div>';
+  }
+
+  if (diff) {
+    html += '<div class="gv-sec"><h4>Diff</h4><div class="gv-diff">' + colorDiff(diff) + '</div></div>';
+  }
+
+  if (log && log.length) {
+    html += '<div class="gv-sec"><h4>Recent Commits</h4><div class="gv-log">';
+    for (const c of log) {
+      html += '<div class="gv-log-entry"><span class="gv-log-hash">' + escHtml(c.hash) + '</span><span class="gv-log-msg">' + escHtml(c.message) + '</span></div>';
+    }
+    html += '</div></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+async function viewGitDiff(file) {
+  const diff = await api.gitDiff(file);
+  if (diff) {
+    const container = document.getElementById('git-content');
+    const existing = container.querySelector('.gv-diff');
+    if (existing) existing.outerHTML = '<div class="gv-sec"><h4>Diff: ' + escHtml(file) + '</h4><div class="gv-diff">' + colorDiff(diff) + '</div></div>';
+  }
+}
+
+function colorDiff(text) {
+  return text.split('\n').map(line => {
+    if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) return '<span class="hdr">' + escHtml(line) + '</span>';
+    if (line.startsWith('+')) return '<span class="add">' + escHtml(line) + '</span>';
+    if (line.startsWith('-')) return '<span class="del">' + escHtml(line) + '</span>';
+    return escHtml(line);
+  }).join('\n');
+}
+
+// ─── CHAT ──────────────────────────────────────────────────────────
+function addMsg(role, text) {
+  const empty = document.getElementById('ch-empty');
+  if (empty) empty.style.display = 'none';
+
+  const container = document.getElementById('ch-msgs');
+  const msg = document.createElement('div');
+  msg.className = 'ch-msg ' + (role === 'user' ? 'user' : 'bot');
+
+  let formatted = escHtml(text);
+  // Simple code block formatting
+  formatted = formatted.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+  formatted = formatted.replace(/\n/g, '<br>');
+
+  msg.innerHTML = '<div class="ch-av">' + (role === 'user' ? 'You' : 'OC') + '</div><div class="ch-bbl">' + formatted + '</div>';
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+
+  chatMessages.push({ role, text, t: Date.now() });
+}
+
+function addTyping() {
+  const c = document.getElementById('ch-msgs');
+  const e = document.createElement('div');
+  e.className = 'ch-msg bot';
+  e.id = 'typing';
+  e.innerHTML = '<div class="ch-av">OC</div><div class="ch-bbl"><div class="ch-typing"><span></span><span></span><span></span></div></div>';
+  c.appendChild(e);
+  c.scrollTop = c.scrollHeight;
+}
+
+function rmTyping() {
+  const e = document.getElementById('typing');
+  if (e) e.remove();
+}
+
+async function send() {
+  const inp = document.getElementById('ch-inp');
+  const text = inp.value.trim();
+  if (!text) return;
+
+  inp.value = '';
+  aGrow(inp);
+  document.getElementById('snd').disabled = true;
+  document.getElementById('ch-hints').style.display = 'none';
+
+  addMsg('user', text);
+
+  if (!termConnected || !ocLaunched) {
+    addMsg('assistant', 'OpenCode is not running yet. Switch to the **OpenCode** tab in the sidebar — it will launch automatically. Then come back and try again.');
+    return;
+  }
+
+  // Route text directly to the running OpenCode terminal process
+  const sent = await api.termSendText(text + '\n');
+  if (sent) {
+    addMsg('assistant', '↗ Sent to OpenCode. Switch to the **OpenCode** tab to see the response.');
+  } else {
+    addMsg('assistant', 'Could not send — terminal is not connected. Click Restart in the OpenCode tab.');
+  }
+}
+
+function sendHint(el) {
+  document.getElementById('ch-inp').value = el.textContent;
+  aGrow(document.getElementById('ch-inp'));
+  send();
+}
+
+function hKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+}
+
+function aGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  document.getElementById('snd').disabled = !el.value.trim();
+}
+
+// ─── SESSIONS ─────────────────────────────────────────────────────
+async function loadSessions() {
+  // Use global sessions (always available, no project needed)
+  let sessions = [];
+  try { sessions = await api.sessionListGlobal(); } catch {}
+  if (!sessions.length) {
+    try { sessions = await api.sessionList(); } catch {}
+  }
+  const bar = document.getElementById('session-bar');
+  let html = '<span class="session-pill new" onclick="newSession()">+ New</span>';
+  for (const s of sessions) {
+    const cls = s.name === currentSession ? ' on' : '';
+    html += '<span class="session-pill' + cls + '" onclick="switchSession(\'' + escAttr(s.name) + '\')">' + escHtml(s.name) + '</span>';
+  }
+  bar.innerHTML = html;
+}
+
+function newSession() {
+  const name = prompt('Session name:');
+  if (!name) return;
+  currentSession = name;
+  chatMessages = [];
+  document.getElementById('ch-msgs').innerHTML = '';
+  document.getElementById('ch-empty').style.display = '';
+  loadSessions();
+}
+
+async function switchSession(name) {
+  // Save current to global sessions
+  if (chatMessages.length > 0) {
+    await api.sessionSaveGlobal({ name: currentSession, messages: chatMessages });
+    if (projectDir) await api.sessionSave({ name: currentSession, messages: chatMessages }).catch(() => {});
+  }
+  currentSession = name;
+  let session = null;
+  try { session = await api.sessionLoadGlobal(name); } catch {}
+  if (!session && projectDir) { try { session = await api.sessionLoad(name); } catch {} }
+  chatMessages = session ? session.messages : [];
+  document.getElementById('ch-msgs').innerHTML = '';
+  if (chatMessages.length === 0) {
+    document.getElementById('ch-empty').style.display = '';
+  } else {
+    document.getElementById('ch-empty').style.display = 'none';
+    for (const m of chatMessages) addMsg(m.role, m.text);
+  }
+  loadSessions();
+}
+
+// ─── VOICE ────────────────────────────────────────────────────────
+function togVox() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showNotify('Speech recognition not available');
+    return;
+  }
+  if (isRecording) { stopVox(); return; }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+  recognition.onresult = e => {
+    let t = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) t += e.results[i][0].transcript;
+    const inp = document.getElementById('ch-inp');
+    inp.value = t;
+    aGrow(inp);
+    document.getElementById('snd').disabled = !t.trim();
+  };
+  recognition.onend = () => { if (isRecording) recognition.start(); };
+  recognition.onerror = () => stopVox();
+  recognition.start();
+  isRecording = true;
+  document.getElementById('vox').classList.add('rec');
+  document.getElementById('vox').innerHTML = '&#9632;';
+  setStatus('Listening...', true);
+}
+
+function stopVox() {
+  if (recognition) { recognition.stop(); recognition = null; }
+  isRecording = false;
+  document.getElementById('vox').classList.remove('rec');
+  document.getElementById('vox').innerHTML = '&#127908;';
+  setStatus('Ready', true);
+}
+
+// ─── TERMINAL ─────────────────────────────────────────────────────
+function initTerm() {
+  if (term) return;
+
+  // Clean up any stale IPC listeners from a previous session
+  api.removeTermListeners();
+
+  term = new Terminal({
+    fontFamily: "'Cascadia Code','Cascadia Mono','Consolas','Courier New',monospace",
+    fontSize: 13,
+    lineHeight: 1.3,
+    cursorBlink: true,
+    cursorStyle: 'bar',
+    allowTransparency: false,
+    convertEol: false,
+    scrollback: 5000,
+    theme: {
+      background: '#0a0a0a', foreground: '#e8e8ec', cursor: '#d97706',
+      cursorAccent: '#0a0a0a', selectionBackground: 'rgba(217,119,6,.25)',
+      selectionForeground: '#fff', black: '#1e1e2a', red: '#ef4444',
+      green: '#22c55e', yellow: '#f59e0b', blue: '#7c3aed', magenta: '#c084fc',
+      cyan: '#67e8f9', white: '#e8e8ec', brightBlack: '#666680',
+      brightRed: '#f87171', brightGreen: '#4ade80', brightYellow: '#fbbf24',
+      brightBlue: '#a78bfa', brightMagenta: '#d8b4fe', brightCyan: '#a5f3fc',
+      brightWhite: '#fff'
+    }
+  });
+
+  fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(document.getElementById('terminal'));
+  setTimeout(() => { try { fitAddon.fit(); } catch {} }, 50);
+  term.onData(d => api.termInput(d));
+
+  const termEl = document.getElementById('terminal');
+  const ro = new ResizeObserver(() => {
+    if (!term) return;
+    try { fitAddon.fit(); } catch {}
+    if (termConnected) api.termResize(term.cols, term.rows);
+  });
+  ro.observe(termEl);
+  window.addEventListener('resize', () => { try { fitAddon?.fit(); } catch {} });
+
+  // Output: write to terminal; if waiting for shell ready, trigger OpenCode launch
+  api.onTermOutput(d => {
+    if (!term) return;
+    term.write(d);
+    if (waitingForShell) {
+      waitingForShell = false;
+      clearTimeout(shellLaunchTimer);
+      // Shell produced output → it's ready. Clear and launch OpenCode.
+      shellLaunchTimer = setTimeout(() => {
+        term.clear();
+        launchOpenCode();
+      }, 400);
+    }
+  });
+
+  api.onTermCreated(() => {
+    termConnected = true;
+    document.getElementById('t-dot').className = 't-dot on';
+    document.getElementById('t-st').textContent = 'Shell ready — launching OpenCode...';
+    setStatus('Launching OpenCode...', true);
+    waitingForShell = true;
+    // Safety: if no output in 6s, launch anyway
+    shellLaunchTimer = setTimeout(() => {
+      if (waitingForShell) { waitingForShell = false; launchOpenCode(); }
+    }, 6000);
+  });
+
+  api.onTermExit(c => {
+    termConnected = false;
+    ocLaunched = false;
+    waitingForShell = false;
+    clearTimeout(shellLaunchTimer);
+    document.getElementById('t-dot').className = 't-dot';
+    document.getElementById('t-st').textContent = 'Session ended — click Restart';
+    document.getElementById('launch-btn').style.display = '';
+    setStatus('OpenCode stopped', false);
+  });
+
+  api.onTermError(m => {
+    termConnected = false;
+    ocLaunched = false;
+    document.getElementById('t-dot').className = 't-dot';
+    document.getElementById('t-st').textContent = 'Error: ' + m.slice(0, 60);
+    document.getElementById('launch-btn').style.display = '';
+    setStatus('Terminal error', false);
+  });
+
+  api.termCreate({ cwd: undefined });
+}
+
+function launchOpenCode() {
+  if (!termConnected) { initTerm(); return; }
+  if (ocLaunched) return;
+  ocLaunched = true;
+  // Python pty.spawn creates a real PTY for OpenCode inside WSL
+  const pyCmd = [
+    "import pty,os",
+    "home=os.path.expanduser('~')",
+    "oc=home+'/.opencode/bin/opencode'",
+    "os.environ.update({'PATH':home+'/.opencode/bin:'+os.environ.get('PATH',''),'TERM':'xterm-256color','COLORTERM':'truecolor'})",
+    "pty.spawn(oc)"
+  ].join(';');
+  api.termRun({ command: `python3 -c "${pyCmd}"` });
+  document.getElementById('t-st').textContent = 'OpenCode running';
+  document.getElementById('launch-btn').style.display = 'none';
+  setStatus('OpenCode active', true);
+}
+
+function termClear() {
+  if (term) term.clear();
+}
+
+async function termReconnect() {
+  // Kill existing shell and clean up completely
+  clearTimeout(shellLaunchTimer);
+  waitingForShell = false;
+  ocLaunched = false;
+  termConnected = false;
+  api.termKill();
+  api.removeTermListeners();
+
+  if (term) {
+    try { term.dispose(); } catch {}
+    term = null;
+    fitAddon = null;
+  }
+
+  document.getElementById('t-dot').className = 't-dot';
+  document.getElementById('t-st').textContent = 'Restarting...';
+  document.getElementById('launch-btn').style.display = 'none';
+  setStatus('Restarting OpenCode...', false);
+  document.getElementById('terminal').innerHTML = '';
+
+  await new Promise(r => setTimeout(r, 600));
+  initTerm();
+}
+
+// ─── OBSIDIAN NOTES ───────────────────────────────────────────────
+let curNoteRelPath = null;
+let noteEdited = false;
+
+async function loadObsidianNotes() {
+  const list = document.getElementById('notes-list');
+  list.innerHTML = '<div style="padding:8px 12px;color:var(--muted);font-size:11px">Loading vault...</div>';
+  try {
+    const items = await api.obsidianList();
+    if (!items || items.length === 0) {
+      list.innerHTML = '<div style="padding:8px 12px;color:var(--muted);font-size:11px">Vault empty or not found</div>';
+      return;
+    }
+    list.innerHTML = '';
+    renderNoteTree(items, list, 0);
+  } catch (e) {
+    list.innerHTML = '<div style="padding:8px 12px;color:var(--accent);font-size:11px">Error: ' + escHtml(String(e)) + '</div>';
+  }
+}
+
+function renderNoteTree(items, container, depth) {
+  for (const item of items) {
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:3px 10px 3px ' + (10 + depth * 12) + 'px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--text2);border-radius:3px;margin:1px 4px';
+    if (item.type === 'dir') {
+      el.style.color = 'var(--muted)';
+      el.style.fontWeight = '600';
+      el.textContent = '📁 ' + item.name;
+      const childContainer = document.createElement('div');
+      let open = false;
+      el.onclick = () => {
+        open = !open;
+        childContainer.style.display = open ? 'block' : 'none';
+      };
+      childContainer.style.display = 'none';
+      container.appendChild(el);
+      container.appendChild(childContainer);
+      renderNoteTree(item.children || [], childContainer, depth + 1);
+    } else {
+      el.textContent = '📝 ' + item.name.replace(/\.md$/, '');
+      el.title = item.relPath;
+      el.onmouseenter = () => { el.style.background = 'var(--surface)'; };
+      el.onmouseleave = () => { el.style.background = curNoteRelPath === item.relPath ? 'var(--accentBg)' : ''; };
+      el.onclick = () => openObsidianNote(item.relPath, item.name, el);
+      container.appendChild(el);
+    }
+  }
+}
+
+async function openObsidianNote(relPath, name, el) {
+  if (noteEdited && curNoteRelPath) {
+    if (!confirm('You have unsaved changes. Discard?')) return;
+  }
+  curNoteRelPath = relPath;
+  noteEdited = false;
+  // Highlight selected
+  document.querySelectorAll('#notes-list div').forEach(d => d.style.background = '');
+  if (el) el.style.background = 'var(--accentBg)';
+
+  const content = await api.obsidianRead(relPath);
+  const editor = document.getElementById('note-editor');
+  editor.value = content || '';
+  document.getElementById('note-title').textContent = (name || relPath).replace(/\.md$/, '');
+  document.getElementById('note-save-btn').style.display = '';
+  document.getElementById('note-export-btn').style.display = 'none';
+  noteEdited = false;
+}
+
+function onNoteEdit() {
+  noteEdited = true;
+  document.getElementById('note-save-btn').style.display = '';
+}
+
+async function saveCurrentNote() {
+  if (!curNoteRelPath) return;
+  const content = document.getElementById('note-editor').value;
+  const ok = await api.obsidianWrite({ relPath: curNoteRelPath, content });
+  if (ok) { noteEdited = false; showNotify('Note saved to Obsidian'); }
+  else showNotify('Save failed');
+}
+
+async function newObsidianNote() {
+  const name = prompt('Note name (e.g. "ideas" or "Projects/my-plan"):');
+  if (!name) return;
+  const relPath = (name.endsWith('.md') ? name : name + '.md');
+  const heading = relPath.split(/[/\\]/).pop().replace(/\.md$/, '');
+  const content = '# ' + heading + '\n\nCreated: ' + new Date().toISOString().slice(0, 10) + '\n\n';
+  const ok = await api.obsidianWrite({ relPath, content });
+  if (ok) {
+    await loadObsidianNotes();
+    curNoteRelPath = relPath;
+    document.getElementById('note-editor').value = content;
+    document.getElementById('note-title').textContent = heading;
+    document.getElementById('note-save-btn').style.display = '';
+    noteEdited = false;
+    showNotify('Note created in Obsidian');
+  } else showNotify('Failed to create note');
+}
+
+async function exportSessionToObsidian() {
+  if (chatMessages.length === 0) { showNotify('No chat messages to export'); return; }
+  const date = new Date().toISOString().slice(0, 10);
+  const relPath = 'Projects/OpenCode Sessions/session-' + date + '-' + Date.now() + '.md';
+  let md = '# OpenCode Session — ' + new Date().toLocaleString() + '\n\n';
+  for (const m of chatMessages) {
+    md += (m.role === 'user' ? '**You:** ' : '**OpenCode:** ') + m.text + '\n\n';
+  }
+  const ok = await api.obsidianWrite({ relPath, content: md });
+  if (ok) showNotify('Session saved to Obsidian vault');
+  else showNotify('Export failed');
+}
+
+async function exportNoteToObsidian() {
+  const content = document.getElementById('note-editor').value;
+  const name = prompt('Save as (relative path in vault):', curNoteRelPath || 'Projects/export.md');
+  if (!name) return;
+  await api.obsidianWrite({ relPath: name, content });
+  showNotify('Exported to vault');
+}
+
+// ─── LEGACY note function (kept for compat) ───────────────────────
+async function newNote() { newObsidianNote(); }
+
+// ─── AI CONNECT ───────────────────────────────────────────────────
+async function connectAI() {
+  if (!termConnected || !ocLaunched) {
+    showNotify('OpenCode must be running first');
+    sw('terminal');
+    return;
+  }
+  // Type /connect into the running OpenCode TUI
+  await api.termSendText('/connect\n');
+  sw('terminal');
+  showNotify('Sent /connect to OpenCode');
+}
+
+// ─── GIT REPO INIT ────────────────────────────────────────────────
+async function initGitRepo() {
+  if (!projectDir) { showNotify('Select a project directory first'); return; }
+  const result = await api.gitInitDir(projectDir);
+  if (result.success) {
+    showNotify('Git repo initialized in ' + projectDir);
+    document.getElementById('st-git-status').textContent = '✓ Git initialized';
+    document.getElementById('btn-git-init').style.display = 'none';
+    await loadGitMini();
+  } else {
+    showNotify('Git init failed: ' + result.error);
+  }
+}
+
+async function openObsidianVault() {
+  const vaultPath = await api.obsidianPath();
+  await api.shellOpenPath(vaultPath);
+}
+
+async function openInExplorer() {
+  if (projectDir) await api.shellShowInFolder(projectDir);
+}
+
+async function showAllSessions() {
+  const sessions = await api.sessionListGlobal();
+  if (!sessions.length) { showNotify('No saved sessions yet'); return; }
+  const names = sessions.map(s => s.name + ' (' + (s.count || 0) + ' msgs)').join('\n');
+  alert('Saved sessions:\n\n' + names);
+}
+
+// ─── NOTES (original, now redirects to Obsidian) ──────────────────
+async function openNoteFile(fp, name) {
+  // Legacy — open from filesystem path directly
+  const content = await api.readFile(fp);
+  if (content === null) return;
+  curNoteRelPath = null;
+  document.getElementById('note-title').textContent = name || fp.split(/[/\\]/).pop();
+  document.getElementById('note-editor').value = content;
+  document.getElementById('note-save-btn').style.display = '';
+}
+
+// ─── UTILITIES ────────────────────────────────────────────────────
+function escHtml(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function escAttr(t) { return String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+function showNotify(msg) {
+  api.notify({ title: 'OpenCode', body: msg });
+}
+
+// ─── KEYBOARD SHORTCUTS ──────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeOv(); if (isRecording) stopVox(); }
+  if (e.ctrlKey && e.key === 's') { e.preventDefault(); if (curV === 'files') saveEditor(); }
+  if (e.ctrlKey && e.key === 'l') { e.preventDefault(); if (curV === 'terminal') termClear(); }
+  if (e.ctrlKey && e.key === '1') { e.preventDefault(); sw('chat'); }
+  if (e.ctrlKey && e.key === '2') { e.preventDefault(); sw('terminal'); }
+  if (e.ctrlKey && e.key === '3') { e.preventDefault(); sw('files'); }
+  if (e.ctrlKey && e.key === '4') { e.preventDefault(); sw('git'); loadGit(); }
+  if (e.ctrlKey && e.key === '5') { e.preventDefault(); sw('notes'); }
+  if (e.ctrlKey && e.key === 'p') { e.preventDefault(); selectProject(); }
+  if (e.ctrlKey && e.key === 'n') { e.preventDefault(); newSession(); }
+  if (e.ctrlKey && e.key === 't') { e.preventDefault(); sw('terminal'); }
+});
+
+// ─── INIT ─────────────────────────────────────────────────────────
+(async () => {
+  document.getElementById('load-text').textContent = 'Launching OpenCode...';
+  document.getElementById('load-sub').textContent = 'Starting WSL terminal';
+
+  // Restore last project silently
+  try {
+    const last = await api.projectGetLast();
+    if (last && await api.fileExists(last)) {
+      await loadProject(last);
+    }
+  } catch {}
+
+  // Settings panel info
+  try {
+    const sys = await api.sysInfo();
+    document.getElementById('st-sys').textContent =
+      sys.platform + ' / ' + sys.arch + ' / Node ' + sys.nodeVersion + ' / Electron ' + sys.electronVersion;
+  } catch {}
+
+  try {
+    const hasOC = await api.checkOpenCode();
+    document.getElementById('st-oc').textContent = hasOC ? '✓ OpenCode CLI found in WSL' : '⚠ OpenCode not in default WSL PATH (still works via ~/.opencode/bin)';
+    document.getElementById('st-oc').style.color = hasOC ? 'var(--green)' : 'var(--muted)';
+  } catch {}
+
+  // Load Obsidian vault path in settings
+  try {
+    const vp = await api.obsidianPath();
+    document.getElementById('st-obsidian-path').textContent = vp;
+  } catch {}
+
+  loadSessions();
+
+  api.onMaximized(m => {
+    document.getElementById('btn-max').innerHTML = m ? '&#9634;' : '&#9633;';
+  });
+
+  // Start terminal + auto-launch OpenCode immediately
+  initTerm();
+
+  setTimeout(() => {
+    document.getElementById('loader').classList.add('done');
+  }, 1200);
+})();
+</script>
+</body>
+</html>
