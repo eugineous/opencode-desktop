@@ -1,0 +1,12 @@
+name = "opencode-newsletter"
+main = "index.js"
+compatibility_date = "2024-01-01"
+account_id = "c6f4f875a289e51e48a85baa1f77411e"
+
+[[kv_namespaces]]
+binding = "OCD_SUBSCRIBERS"
+id = "31abc60d71bd44998d39c01b69e9008c"
+
+# Secrets (set via: wrangler secret put ADMIN_KEY / wrangler secret put RESEND_KEY)
+# ADMIN_KEY  — your private admin password for /subscribers and /announce
+# RESEND_KEY — your Resend.com API key for sending emails

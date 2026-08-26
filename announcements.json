@@ -1,0 +1,13 @@
+[
+  {
+    "id": "2026-08-26-welcome",
+    "date": "2026-08-26",
+    "type": "update",
+    "title": "A personal note from Eugine",
+    "body": "Thank you for installing OpenCode Desktop. I built this because I wanted a tool that made AI-powered coding feel natural — not like fighting a terminal. Whether you're a developer or just starting out, I hope this saves you real time every day.\n\nThis is where I'll send you updates, tips, and new feature announcements. You can always send me feedback directly from this panel.\n\n— Eugine Micah",
+    "cta": {
+      "label": "See what's new on GitHub",
+      "url": "https://github.com/eugineous/opencode-desktop/releases"
+    }
+  }
+]

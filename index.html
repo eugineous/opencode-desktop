@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:; img-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; font-src 'self' data:; img-src 'self' data:; connect-src 'self' https://raw.githubusercontent.com;">
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <title>OpenCode</title>
 <style>
@@ -409,6 +409,36 @@ body.focus-mode .ct{height:100vh}
 .upd-close{font-size:14px;color:var(--muted);cursor:pointer;padding:2px;flex-shrink:0}
 .upd-close:hover{color:var(--text)}
 
+/* ── Notification panel ── */
+.notif-panel{position:fixed;top:44px;right:4px;width:340px;max-height:60vh;background:var(--card);border:1px solid var(--border);border-radius:var(--rl);z-index:800;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.65);animation:notifIn .15s cubic-bezier(.22,1,.36,1)}
+.notif-panel.hidden{display:none}
+@keyframes notifIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.notif-hdr{padding:10px 14px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.notif-hdr-title{font-size:12px;font-weight:700;color:var(--text)}
+.notif-hdr-sub{font-size:10px;color:var(--muted);margin-top:1px}
+.notif-hdr-close{width:20px;height:20px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:4px;font-size:12px}
+.notif-hdr-close:hover{background:var(--hover);color:var(--text)}
+.notif-list{overflow-y:auto;flex:1}
+.notif-item{padding:10px 14px;border-bottom:1px solid var(--border);transition:background .1s}
+.notif-item:last-child{border-bottom:none}
+.notif-item.notif-new{background:rgba(217,119,6,.06)}
+.notif-item-hdr{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.notif-type-icon{font-size:12px;flex-shrink:0}
+.notif-item-title{font-size:12px;font-weight:700;color:var(--text);flex:1;line-height:1.3}
+.notif-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.notif-item-body{font-size:11px;color:var(--text2);line-height:1.55;margin-bottom:4px}
+.notif-item-date{font-size:10px;color:var(--muted)}
+.notif-cta{display:inline-block;margin-top:5px;font-size:11px;color:var(--accent);cursor:pointer;text-decoration:none;background:none;border:none;padding:0}
+.notif-cta:hover{color:var(--accent2);text-decoration:underline}
+.notif-empty{padding:24px;text-align:center;font-size:12px;color:var(--muted)}
+.notif-foot{padding:8px 14px;border-top:1px solid var(--border);flex-shrink:0;display:flex;gap:6px}
+.notif-feed-btn{font-size:10.5px;color:var(--text2);background:var(--hover);border:none;cursor:pointer;padding:4px 9px;border-radius:4px;transition:all .1s;flex:1}
+.notif-feed-btn:hover{background:var(--border);color:var(--text)}
+#notif-btn{position:relative}
+.notif-badge{position:absolute;top:1px;right:1px;min-width:14px;height:14px;background:var(--red);color:#fff;border-radius:7px;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:0 2px}
+.notif-badge.hidden{display:none}
+#notif-btn.notif-has-new{color:var(--accent)}
+
 /* ── Onboarding wizard ── */
 .ob-wrap{position:fixed;inset:0;background:rgba(0,0,0,.92);backdrop-filter:blur(8px);z-index:1000;display:flex;align-items:center;justify-content:center}
 .ob-wrap.hidden{display:none}
@@ -467,9 +497,9 @@ body.focus-mode .ct{height:100vh}
 
     <!-- Step 1: Welcome -->
     <div class="ob-step on" id="ob-step-1">
-      <div class="ob-eyebrow">Step 1 of 4</div>
-      <h2 class="ob-h">Welcome to OpenCode Desktop</h2>
-      <p class="ob-p">Your all-in-one AI coding environment. Terminal, git, file explorer, notes, and multiple AI agents — all in one window. Let's get you set up in about 60 seconds.</p>
+      <div class="ob-eyebrow">A note from the developer</div>
+      <h2 class="ob-h">Welcome — I'm glad you're here</h2>
+      <p class="ob-p" style="font-style:italic;border-left:3px solid var(--accent);padding-left:12px;margin-bottom:14px">Thank you for installing OpenCode Desktop. I built this because I got tired of switching between a terminal, a browser, a git client, and an AI chat window — and I figured you probably did too.<br><br>Whether you're a developer or just starting out, I hope this saves you real time every day. There's a lot more coming.<br><br>— Eugine Micah</p>
       <div class="ob-feature-grid">
         <div class="ob-feat"><div class="fi">&#128187;</div><strong>AI Terminal</strong>OpenCode runs right inside the app</div>
         <div class="ob-feat"><div class="fi">&#129504;</div><strong>Memory</strong>History saved across sessions</div>
@@ -480,7 +510,7 @@ body.focus-mode .ct{height:100vh}
         <div class="ob-dots">
           <div class="ob-dot on"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div>
         </div>
-        <button class="ob-btn pri" onclick="obNext(2)">Get Started →</button>
+        <button class="ob-btn pri" onclick="obNext(2)">Let's set up →</button>
       </div>
     </div>
 
@@ -528,10 +558,22 @@ body.focus-mode .ct{height:100vh}
     <div class="ob-step" id="ob-step-4">
       <div class="ob-eyebrow">Step 4 of 4</div>
       <h2 class="ob-h">You're all set! &#127881;</h2>
-      <p class="ob-p">OpenCode Desktop is ready. Hit <strong>Launch OpenCode</strong> to start your first AI coding session — or just explore the sidebar. You can always come back to settings to adjust things.</p>
+      <p class="ob-p">OpenCode Desktop is ready. Hit <strong>Launch OpenCode</strong> to start your first AI coding session.</p>
       <div class="ob-check-row"><span class="ck ok">&#10003;</span><span><strong>Tip:</strong> Press <strong>Ctrl+K</strong> anytime for the command palette</span></div>
-      <div class="ob-check-row"><span class="ck ok">&#10003;</span><span><strong>Tip:</strong> Press <strong>Ctrl+Alt+O</strong> to focus the app from anywhere</span></div>
-      <div class="ob-check-row"><span class="ck ok">&#10003;</span><span><strong>Tip:</strong> The sidebar collapses to give you more space</span></div>
+      <div class="ob-check-row"><span class="ck ok">&#10003;</span><span><strong>Tip:</strong> The bell icon shows messages and updates from me directly</span></div>
+      <!-- Newsletter opt-in -->
+      <div style="margin:14px 0 0;padding:14px;background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.2);border-radius:8px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:6px">&#128140; Stay in the loop (optional)</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Get release notes and tips from Eugine. No spam — ever.</div>
+        <div style="display:flex;gap:6px" id="ob-sub-row">
+          <input id="ob-email" type="email" placeholder="your@email.com" autocomplete="email"
+            style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;outline:none"
+            onkeydown="if(event.key==='Enter')obSubscribe()"
+          />
+          <button class="ob-btn sec" onclick="obSubscribe()" id="ob-sub-btn" style="font-size:11.5px;padding:7px 14px;white-space:nowrap">Subscribe</button>
+        </div>
+        <div id="ob-sub-msg" style="font-size:11px;margin-top:6px;display:none"></div>
+      </div>
       <div class="ob-actions">
         <div class="ob-dots">
           <div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot"></div><div class="ob-dot on"></div>
@@ -554,6 +596,24 @@ body.focus-mode .ct{height:100vh}
   <span class="upd-close" onclick="document.getElementById('upd-banner').classList.add('hidden')" title="Dismiss">&#10005;</span>
 </div>
 
+<!-- NOTIFICATION PANEL -->
+<div class="notif-panel hidden" id="notif-panel">
+  <div class="notif-hdr">
+    <div>
+      <div class="notif-hdr-title">&#128276; Developer Updates</div>
+      <div class="notif-hdr-sub">From Eugine Micah, OpenCode Desktop</div>
+    </div>
+    <button class="notif-hdr-close" onclick="toggleNotifPanel()">&#215;</button>
+  </div>
+  <div class="notif-list" id="notif-list">
+    <div class="notif-empty">Loading...</div>
+  </div>
+  <div class="notif-foot">
+    <button class="notif-feed-btn" onclick="api.openExternal('mailto:euginemicah@gmail.com?subject=OpenCode+Desktop+Feedback&body=App+version:+' + (window._appVer||''))">&#128231; Send feedback</button>
+    <button class="notif-feed-btn" onclick="api.openExternal('https://github.com/eugineous/opencode-desktop/issues/new?template=bug_report.md')">&#128027; Report bug</button>
+  </div>
+</div>
+
 <!-- LOADING -->
 <div class="load" id="loader">
   <div class="load-icon">&gt;_</div>
@@ -574,6 +634,7 @@ body.focus-mode .ct{height:100vh}
   <div class="tb-r" style="gap:0">
     <button class="tb-b" onclick="openCmdPal()" title="Command palette (Ctrl+K)" style="font-size:10px;letter-spacing:.5px;color:var(--muted)">⌘K</button>
     <button class="tb-b" onclick="api.showAbout&&api.showAbout()" title="About" style="font-size:10px">&#9432;</button>
+    <button class="tb-b" onclick="toggleNotifPanel()" title="Developer messages" id="notif-btn">&#128276;<span class="notif-badge hidden" id="notif-badge">0</span></button>
     <button class="tb-b" onclick="api.minimize()" title="Minimize">&#8722;</button>
     <button class="tb-b" onclick="api.maximize()" title="Maximize" id="btn-max">&#9633;</button>
     <button class="tb-b x" onclick="api.close()" title="Close">&#215;</button>
@@ -2241,6 +2302,7 @@ document.addEventListener('keydown', e => {
   } else {
     // Start terminal + auto-launch OpenCode immediately
     initTerm();
+    initNotifications().catch(() => {});
     // Auto-check updates at startup (silent)
     setTimeout(async () => {
       try { await checkUpdatesUI(true); } catch {}
@@ -2770,10 +2832,137 @@ async function obRunChecks() {
   } catch { ckOc.textContent = '!'; ckOc.className = 'ck'; }
 }
 
+// ─── NEWSLETTER SUBSCRIPTION ─────────────────────────────────────
+// Set this to your deployed newsletter worker URL after deploying the newsletter-worker
+const NEWSLETTER_URL = 'https://opencode-newsletter.euginemicah.workers.dev/subscribe';
+
+async function obSubscribe() {
+  const emailEl = document.getElementById('ob-email');
+  const msgEl = document.getElementById('ob-sub-msg');
+  const btn = document.getElementById('ob-sub-btn');
+  const email = (emailEl?.value || '').trim();
+  if (!email) { obFinish(); return; }
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRe.test(email)) {
+    msgEl.textContent = 'Please enter a valid email address.';
+    msgEl.style.color = '#ef4444';
+    msgEl.style.display = 'block';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Subscribing…';
+  msgEl.style.display = 'none';
+  try {
+    const r = await fetch(NEWSLETTER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, appVersion: window._appVer || 'unknown', platform: navigator.platform }),
+    });
+    if (r.ok) {
+      msgEl.textContent = 'Done! Check your inbox for a welcome note.';
+      msgEl.style.color = '#22c55e';
+      msgEl.style.display = 'block';
+      document.getElementById('ob-sub-row').style.display = 'none';
+      setTimeout(() => obFinish(), 1800);
+    } else {
+      throw new Error('Subscribe failed');
+    }
+  } catch {
+    msgEl.textContent = 'Could not subscribe right now — you can skip this.';
+    msgEl.style.color = 'var(--text2)';
+    msgEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Subscribe';
+  }
+}
+
+// ─── ANNOUNCEMENTS / NOTIFICATION PANEL ──────────────────────────
+const ANNOUNCE_URL = 'https://raw.githubusercontent.com/eugineous/opencode-desktop/master/announcements.json';
+let _notifOpen = false;
+
+async function initNotifications() {
+  try {
+    const r = await fetch(ANNOUNCE_URL + '?_t=' + Date.now());
+    if (!r.ok) return;
+    const items = await r.json();
+    if (!items || !items.length) return;
+    const seen = JSON.parse(localStorage.getItem('oc-seen-announce') || '[]');
+    const fresh = items.filter(a => !seen.includes(a.id));
+    _renderNotifList(items, seen);
+    if (fresh.length) {
+      const badge = document.getElementById('notif-badge');
+      badge.textContent = fresh.length > 9 ? '9+' : String(fresh.length);
+      badge.classList.remove('hidden');
+      document.getElementById('notif-btn').classList.add('notif-has-new');
+    }
+  } catch {}
+  // Refresh every 6 hours
+  setTimeout(() => initNotifications().catch(() => {}), 6 * 60 * 60 * 1000);
+}
+
+function _renderNotifList(items, seen) {
+  const list = document.getElementById('notif-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!items.length) { list.innerHTML = '<div class="notif-empty">No messages yet</div>'; return; }
+  const clr = {info:'var(--blue)',update:'var(--accent)',warning:'var(--red)',tip:'var(--green)'};
+  const ico  = {info:'ℹ️',update:'⚡',warning:'⚠️',tip:'💡'};
+  for (const a of items) {
+    const isNew = !seen.includes(a.id);
+    const el = document.createElement('div');
+    el.className = 'notif-item' + (isNew ? ' notif-new' : '');
+    el.dataset.id = a.id;
+    const body = (a.body || '').replace(/\n/g, '<br>');
+    el.innerHTML =
+      '<div class="notif-item-hdr">' +
+        '<span class="notif-type-icon" style="color:' + (clr[a.type]||clr.info) + '">' + (ico[a.type]||'ℹ️') + '</span>' +
+        '<span class="notif-item-title">' + _esc(a.title) + '</span>' +
+        (isNew ? '<span class="notif-dot"></span>' : '') +
+      '</div>' +
+      '<div class="notif-item-body">' + _esc(a.body||'').replace(/\n/g,'<br>') + '</div>' +
+      '<div class="notif-item-date">' + _esc(a.date||'') + '</div>' +
+      (a.cta ? '<button class="notif-cta" onclick="api.openExternal(\'' + _esc(a.cta.url) + '\')">' + _esc(a.cta.label) + ' →</button>' : '');
+    list.appendChild(el);
+  }
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toggleNotifPanel() {
+  _notifOpen = !_notifOpen;
+  document.getElementById('notif-panel').classList.toggle('hidden', !_notifOpen);
+  if (_notifOpen) {
+    _markNotifSeen();
+    setTimeout(() => document.addEventListener('click', _notifOutside, true), 0);
+  } else {
+    document.removeEventListener('click', _notifOutside, true);
+  }
+}
+
+function _notifOutside(e) {
+  const panel = document.getElementById('notif-panel');
+  const btn = document.getElementById('notif-btn');
+  if (panel && btn && !panel.contains(e.target) && !btn.contains(e.target)) {
+    _notifOpen = false;
+    panel.classList.add('hidden');
+    document.removeEventListener('click', _notifOutside, true);
+  }
+}
+
+function _markNotifSeen() {
+  const els = [...document.querySelectorAll('.notif-item[data-id]')];
+  const ids = els.map(el => el.dataset.id);
+  localStorage.setItem('oc-seen-announce', JSON.stringify(ids));
+  els.forEach(el => el.classList.remove('notif-new'));
+  document.getElementById('notif-badge').classList.add('hidden');
+  document.getElementById('notif-btn').classList.remove('notif-has-new');
+}
+
 async function obFinish() {
   await api.storeSet('onboarded', true).catch(() => {});
   document.getElementById('ob-wrap').classList.add('hidden');
   initTerm();
+  initNotifications().catch(() => {});
   setTimeout(async () => {
     try { await checkUpdatesUI(true); } catch {}
   }, 5000);

@@ -55,6 +55,14 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
+  // Block navigation away from the local page
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith('file://')) e.preventDefault();
+  });
+
+  // Block any new window / popup attempts
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
   mainWindow.on('close', () => {
     const bounds = mainWindow.getBounds();
     const sett = loadSettings();
@@ -932,6 +940,17 @@ ipcMain.handle('opencode-config-write', (_, config) => {
     fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config, null, 2), 'utf-8');
     return true;
   } catch { return false; }
+});
+
+// ─── Open external URL (safe-listed protocols only) ──────────────
+ipcMain.handle('open-external', (_, url) => {
+  try {
+    const u = String(url || '');
+    if (u.startsWith('https://') || u.startsWith('http://') || u.startsWith('mailto:')) {
+      shell.openExternal(u).catch(() => {});
+    }
+  } catch {}
+  return null;
 });
 
 // ─── App version / update check ──────────────────────────────────

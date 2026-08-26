@@ -142,6 +142,9 @@ contextBridge.exposeInMainWorld('api', {
   opencodeConfigRead: () => ipcRenderer.invoke('opencode-config-read'),
   opencodeConfigWrite: (c) => ipcRenderer.invoke('opencode-config-write', c),
 
+  // Open external URL in default browser
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
   // App version / update check
   appVersion: () => ipcRenderer.invoke('app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),

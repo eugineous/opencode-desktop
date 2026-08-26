@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenCode Newsletter Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f; --surface: #1a1a1a; --border: #2e2e2e;
+    --text: #f0f0f0; --text2: #9a9a9a; --accent: #d97706;
+    --green: #22c55e; --red: #ef4444; --blue: #3b82f6;
+  }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+  header { padding: 18px 24px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .logo { font-family: monospace; font-size: 18px; font-weight: 800; color: var(--accent); }
+  .logo-sub { font-size: 12px; color: var(--text2); }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+  h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--accent); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; font-weight: 600; }
+  input, textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 13px; outline: none; font-family: inherit; }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 120px; }
+  button { padding: 9px 20px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+  button:hover { opacity: .85; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-pri { background: var(--accent); color: #000; }
+  .btn-sec { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat { text-align: center; min-width: 90px; }
+  .stat-num { font-size: 28px; font-weight: 800; color: var(--accent); }
+  .stat-lbl { font-size: 11px; color: var(--text2); }
+  .sub-list { margin-top: 12px; }
+  .sub-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .sub-item:last-child { border-bottom: none; }
+  .sub-email { color: var(--text); }
+  .sub-meta { color: var(--text2); font-size: 11px; }
+  .msg { margin-top: 10px; padding: 10px 12px; border-radius: 6px; font-size: 12.5px; display: none; }
+  .msg.ok { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+  .msg.err { background: rgba(239,68,68,.12); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab { padding: 8px 16px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-pane { display: none; }
+  .tab-pane.on { display: block; }
+  .html-note { font-size: 11px; color: var(--text2); margin-top: 5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">&gt;_ OpenCode Desktop</div>
+    <div class="logo-sub">Newsletter Admin Panel &mdash; private, local only</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- Auth -->
+  <div class="card" id="auth-card">
+    <h2>&#128274; Admin key</h2>
+    <div style="margin-bottom:10px">
+      <label>ADMIN_KEY (the secret you set on the worker)</label>
+      <div class="row">
+        <input type="password" id="admin-key" placeholder="Paste your ADMIN_KEY here" style="flex:1" onkeydown="if(event.key==='Enter')loadDashboard()"/>
+        <input id="worker-url" value="https://opencode-newsletter.euginemicah.workers.dev" placeholder="Worker base URL" style="flex:1.4"/>
+        <button class="btn-pri" onclick="loadDashboard()">Connect</button>
+      </div>
+    </div>
+    <div id="auth-msg" class="msg"></div>
+  </div>
+
+  <!-- Dashboard (hidden until auth) -->
+  <div id="dashboard" style="display:none">
+
+    <div class="tabs">
+      <div class="tab on" onclick="showTab('tab-subs')">Subscribers</div>
+      <div class="tab" onclick="showTab('tab-compose')">Compose &amp; Send</div>
+    </div>
+
+    <!-- Subscribers tab -->
+    <div class="tab-pane on" id="tab-subs">
+      <div class="card">
+        <h2>Subscribers</h2>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-num" id="sub-count">—</div><div class="stat-lbl">Total</div></div>
+          <div class="stat"><div class="stat-num" id="sub-active">—</div><div class="stat-lbl">Active</div></div>
+        </div>
+        <button class="btn-sec" onclick="loadSubscribers()" style="margin-bottom:10px">&#8635; Refresh</button>
+        <div class="sub-list" id="sub-list"><div style="color:var(--text2);font-size:12px">Click Refresh to load subscribers.</div></div>
+      </div>
+    </div>
+
+    <!-- Compose tab -->
+    <div class="tab-pane" id="tab-compose">
+      <div class="card">
+        <h2>Send newsletter</h2>
+        <p style="color:var(--text2);font-size:12.5px;margin-bottom:14px">Sends to all active subscribers via Resend. You can use plain HTML or just plain text.</p>
+        <div style="margin-bottom:10px">
+          <label>Subject line</label>
+          <input id="nl-subject" type="text" placeholder="e.g. OpenCode Desktop v1.3 — what's new"/>
+        </div>
+        <div style="margin-bottom:10px">
+          <label>Body (HTML or plain text)</label>
+          <textarea id="nl-body" placeholder="<p>Hey — here's what's new...</p>&#10;&#10;Or just write plain text here."></textarea>
+          <div class="html-note">Tip: wrap paragraphs in &lt;p&gt; tags for nice email formatting. A reply-to will be set to euginemicah@gmail.com automatically.</div>
+        </div>
+        <div class="row">
+          <button class="btn-pri" onclick="sendNewsletter()">&#9993; Send to all subscribers</button>
+          <button class="btn-sec" onclick="previewHtml()">&#128065; Preview HTML</button>
+        </div>
+        <div id="send-msg" class="msg"></div>
+      </div>
+    </div>
+
+  </div><!-- /dashboard -->
+
+</main>
+
+<script>
+let _key = '', _base = '';
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg ' + type; el.style.display = 'block';
+}
+
+function showTab(id) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  const idx = ['tab-subs','tab-compose'].indexOf(id);
+  document.querySelectorAll('.tab')[idx]?.classList.add('on');
+}
+
+async function loadDashboard() {
+  _key = document.getElementById('admin-key').value.trim();
+  _base = (document.getElementById('worker-url').value.trim()).replace(/\/$/, '');
+  if (!_key || !_base) { showMsg('auth-msg', 'Enter your ADMIN_KEY and worker URL.', 'err'); return; }
+  showMsg('auth-msg', 'Connecting…', 'ok');
+  try {
+    const r = await fetch(_base + '/subscribers', { headers: { 'X-Admin-Key': _key } });
+    if (!r.ok) throw new Error('Unauthorized');
+    const data = await r.json();
+    showMsg('auth-msg', 'Connected! ' + data.count + ' subscribers found.', 'ok');
+    document.getElementById('dashboard').style.display = 'block';
+    _renderSubscribers(data.subscribers);
+  } catch(e) {
+    showMsg('auth-msg', 'Could not connect: ' + e.message, 'err');
+  }
+}
+
+async function loadSubscribers() {
+  try {
+    const r = await fetch(_base + '/subscribers', { headers: { 'X-Admin-Key': _key } });
+    const data = await r.json();
+    _renderSubscribers(data.subscribers);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function _renderSubscribers(subs) {
+  const list = document.getElementById('sub-list');
+  const active = subs.filter(s => s?.active);
+  document.getElementById('sub-count').textContent = subs.length;
+  document.getElementById('sub-active').textContent = active.length;
+  if (!subs.length) { list.innerHTML = '<div style="color:var(--text2);font-size:12px">No subscribers yet.</div>'; return; }
+  list.innerHTML = subs.map(s => {
+    if (!s) return '';
+    const d = s.subscribedAt ? new Date(s.subscribedAt).toLocaleDateString() : '?';
+    return `<div class="sub-item">
+      <div>
+        <div class="sub-email">${esc(s.email)}</div>
+        <div class="sub-meta">${esc(s.platform||'')} &middot; v${esc(s.appVersion||'')} &middot; ${d}</div>
+      </div>
+      <div class="sub-meta">${s.active ? '<span style="color:var(--green)">active</span>' : '<span style="color:var(--text2)">inactive</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function sendNewsletter() {
+  const subject = document.getElementById('nl-subject').value.trim();
+  const body = document.getElementById('nl-body').value.trim();
+  if (!subject || !body) { showMsg('send-msg', 'Subject and body are required.', 'err'); return; }
+  const isHtml = body.trim().startsWith('<');
+  if (!confirm('Send "' + subject + '" to ALL active subscribers?\n\nThis cannot be undone.')) return;
+  showMsg('send-msg', 'Sending…', 'ok');
+  try {
+    const r = await fetch(_base + '/announce', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': _key },
+      body: JSON.stringify({ subject, html: isHtml ? body : '<p>' + body.replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>') + '</p>', text: isHtml ? '' : body }),
+    });
+    const d = await r.json();
+    if (r.ok) showMsg('send-msg', 'Sent to ' + d.sent + ' of ' + d.total + ' subscribers.', 'ok');
+    else showMsg('send-msg', 'Error: ' + (d.error || r.status), 'err');
+  } catch(e) { showMsg('send-msg', 'Error: ' + e.message, 'err'); }
+}
+
+function previewHtml() {
+  const body = document.getElementById('nl-body').value;
+  const w = window.open('', '_blank', 'width=640,height=600');
+  w.document.write('<html><body style="font-family:sans-serif;padding:24px">' + body + '</body></html>');
+  w.document.close();
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>
