@@ -944,6 +944,35 @@ function initTerm() {
   setTimeout(() => { try { fitAddon.fit(); } catch {} }, 50);
   term.onData(d => api.termInput(d));
 
+  // Ctrl+C with selection = copy; Ctrl+V = paste; right-click = context menu
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== 'keydown') return true;
+    if (e.ctrlKey && !e.shiftKey && e.key === 'c' && term.hasSelection()) {
+      navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+      term.clearSelection();
+      return false;
+    }
+    if ((e.ctrlKey && e.shiftKey && e.key === 'C') || (e.ctrlKey && e.shiftKey && e.key === 'c')) {
+      if (term.hasSelection()) navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+      return false;
+    }
+    if (e.ctrlKey && !e.shiftKey && e.key === 'v') {
+      navigator.clipboard.readText().then(t => { if (t) api.termInput(t); }).catch(() => {});
+      return false;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
+      navigator.clipboard.readText().then(t => { if (t) api.termInput(t); }).catch(() => {});
+      return false;
+    }
+    return true;
+  });
+
+  document.getElementById('terminal').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const sel = term.getSelection();
+    showTermCtxMenu(e.clientX, e.clientY, sel);
+  });
+
   const termEl = document.getElementById('terminal');
   const ro = new ResizeObserver(() => {
     if (!term) return;
@@ -1225,6 +1254,41 @@ async function openNoteFile(fp, name) {
   document.getElementById('note-title').textContent = name || fp.split(/[/\\]/).pop();
   document.getElementById('note-editor').value = content;
   document.getElementById('note-save-btn').style.display = '';
+}
+
+// ─── TERMINAL CONTEXT MENU ────────────────────────────────────────
+function showTermCtxMenu(x, y, selected) {
+  document.getElementById('term-ctx')?.remove();
+  const m = document.createElement('div');
+  m.id = 'term-ctx';
+  m.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:4px;z-index:9999;min-width:130px;box-shadow:0 6px 24px rgba(0,0,0,.5);font-size:12px`;
+
+  function item(label, action) {
+    const d = document.createElement('div');
+    d.textContent = label;
+    d.style.cssText = 'padding:7px 14px;cursor:pointer;border-radius:4px;color:var(--text)';
+    d.onmouseenter = () => { d.style.background = 'var(--accentBg)'; d.style.color = 'var(--accent)'; };
+    d.onmouseleave = () => { d.style.background = ''; d.style.color = 'var(--text)'; };
+    d.onclick = () => { m.remove(); action(); };
+    m.appendChild(d);
+  }
+
+  if (selected) item('Copy', () => navigator.clipboard.writeText(selected).catch(() => {}));
+  item('Paste', () => navigator.clipboard.readText().then(t => { if (t) api.termInput(t); }).catch(() => {}));
+  item('Copy & Paste', () => navigator.clipboard.readText().then(t => { if (t) api.termInput(t); }).catch(() => {}));
+  if (selected) item('Clear Selection', () => term?.clearSelection());
+  m.appendChild(Object.assign(document.createElement('div'), { style: 'border-top:1px solid var(--border);margin:4px 0' }));
+  item('Clear Terminal', () => termClear());
+  item('Restart OpenCode', () => termReconnect());
+
+  document.body.appendChild(m);
+
+  // Close on outside click
+  setTimeout(() => document.addEventListener('click', () => m.remove(), { once: true }), 0);
+  // Keep in viewport
+  const r = m.getBoundingClientRect();
+  if (r.right > window.innerWidth) m.style.left = (x - r.width) + 'px';
+  if (r.bottom > window.innerHeight) m.style.top = (y - r.height) + 'px';
 }
 
 // ─── UTILITIES ────────────────────────────────────────────────────
