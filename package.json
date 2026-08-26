@@ -1,17 +1,93 @@
 {
   "name": "opencode-desktop",
-  "version": "1.0.0",
-  "description": "OpenCode Desktop",
+  "version": "1.2.0",
+  "description": "OpenCode AI Development Environment — terminal, git, notes & AI in one window",
   "main": "main.js",
+  "author": {
+    "name": "Eugine Micah",
+    "email": "euginemicah@gmail.com"
+  },
+  "homepage": "https://github.com/eugineous/opencode-desktop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eugineous/opencode-desktop"
+  },
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder --win nsis --x64",
+    "build:portable": "electron-builder --win portable --x64",
+    "build:all": "electron-builder --win --x64"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-search": "^0.16.0",
     "@xterm/xterm": "^5.5.0",
+    "electron-updater": "^6.8.9",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "^33.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.eugineous.opencode-desktop",
+    "productName": "OpenCode Desktop",
+    "copyright": "Copyright © 2026 Eugine Micah",
+    "icon": "assets/icon",
+    "asar": true,
+    "npmRebuild": false,
+    "asarUnpack": [
+      "node_modules/node-pty/**",
+      "node_modules/@xterm/**"
+    ],
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "assets/**",
+      "node_modules/@xterm/**",
+      "node_modules/node-pty/**"
+    ],
+    "extraMetadata": {
+      "version": "1.2.0"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OpenCode Desktop",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "artifactName": "OpenCode Desktop Setup ${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "OpenCode Desktop ${version} Portable.${ext}"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "eugineous",
+      "repo": "opencode-desktop",
+      "releaseType": "release"
+    }
   }
 }

@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // App
+  showAbout: () => ipcRenderer.invoke('show-about'),
+
   // Window
   minimize: () => ipcRenderer.send('win-minimize'),
   maximize: () => ipcRenderer.send('win-maximize'),
@@ -142,8 +145,42 @@ contextBridge.exposeInMainWorld('api', {
   // App version / update check
   appVersion: () => ipcRenderer.invoke('app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  checkForUpdatesNow: () => ipcRenderer.invoke('check-for-updates-now'),
+  installUpdateNow: () => ipcRenderer.invoke('install-update-now'),
+  onUpdateAvailable: (cb) => ipcRenderer.on('update-available', (_, d) => cb(d)),
+  onUpdateProgress: (cb) => ipcRenderer.on('update-progress', (_, pct) => cb(pct)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', (_, d) => cb(d)),
 
   // File system delete/rename (direct fs ops)
   fileDeleteFs: (p) => ipcRenderer.invoke('file-delete-fs', p),
   fileRenameFs: (o) => ipcRenderer.invoke('file-rename-fs', o),
+
+  // Project stats + search
+  projectStats: () => ipcRenderer.invoke('project-stats'),
+  todoScan: () => ipcRenderer.invoke('todo-scan'),
+  projectSearch: (o) => ipcRenderer.invoke('project-search', o),
+  projectReplace: (o) => ipcRenderer.invoke('project-replace', o),
+  fileReadLines: (p) => ipcRenderer.invoke('file-read-lines', p),
+
+  // Git stash
+  gitStashList: () => ipcRenderer.invoke('git-stash-list'),
+  gitStashApply: (r) => ipcRenderer.invoke('git-stash-apply', r),
+  gitStashDrop: (r) => ipcRenderer.invoke('git-stash-drop', r),
+  gitStashPush: (m) => ipcRenderer.invoke('git-stash-push', m),
+  gitOpenGitHub: () => ipcRenderer.invoke('git-open-github'),
+
+  // Unified persistent store
+  storeGet: (key) => ipcRenderer.invoke('store-get', key),
+  storeSet: (key, value) => ipcRenderer.invoke('store-set', key, value),
+  storeDelete: (key) => ipcRenderer.invoke('store-delete', key),
+  storeKeys: () => ipcRenderer.invoke('store-keys'),
+
+  // Persistent history
+  historyAppend: (o) => ipcRenderer.invoke('history-append', o),
+  historyGet: (type) => ipcRenderer.invoke('history-get', type),
+  historyClear: (type) => ipcRenderer.invoke('history-clear', type),
+
+  // Clipboard history
+  clipboardHistory: () => ipcRenderer.invoke('clipboard-history'),
+  onClipboardChanged: (cb) => ipcRenderer.on('clipboard-changed', (_, d) => cb(d)),
 });

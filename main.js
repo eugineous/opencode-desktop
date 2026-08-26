@@ -3,6 +3,13 @@ const path = require('path');
 const { spawn, execSync, exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const { autoUpdater } = require('electron-updater');
+
+// ─── App identity ─────────────────────────────────────────────────
+app.setName('OpenCode Desktop');
+const APP_VERSION = app.getVersion() || '1.2.0';
+const ICON_PATH = path.join(__dirname, 'assets', 'icon.ico');
+const ICON_PNG  = path.join(__dirname, 'assets', 'icon.png');
 
 let mainWindow = null;
 let tray = null;
@@ -32,6 +39,8 @@ function createWindow() {
     y: y !== undefined ? y : undefined,
     frame: false,
     backgroundColor: '#0a0a0a',
+    icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
+    title: 'OpenCode Desktop',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -63,21 +72,90 @@ function createWindow() {
 
 function createTray() {
   try {
-    const iconSize = 16;
-    const icon = nativeImage.createEmpty();
+    const iconFile = fs.existsSync(ICON_PATH) ? ICON_PATH : (fs.existsSync(ICON_PNG) ? ICON_PNG : null);
+    const icon = iconFile ? nativeImage.createFromPath(iconFile).resize({ width: 16, height: 16 }) : nativeImage.createEmpty();
     tray = new Tray(icon);
-    tray.setToolTip('OpenCode Desktop');
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Show OpenCode', click: () => mainWindow?.show() },
+    tray.setToolTip('OpenCode Desktop v' + APP_VERSION);
+    const menu = Menu.buildFromTemplate([
+      { label: 'OpenCode Desktop', enabled: false },
+      { label: 'v' + APP_VERSION + ' by Eugine Micah', enabled: false },
+      { type: 'separator' },
+      { label: 'Show', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+      { label: 'Hide', click: () => mainWindow?.hide() },
+      { type: 'separator' },
+      { label: 'About', click: showAboutDialog },
       { type: 'separator' },
       { label: 'Quit', click: () => { killShell(); killOpenCode(); app.quit(); } }
-    ]));
-    tray.on('double-click', () => mainWindow?.show());
-  } catch {}
+    ]);
+    tray.setContextMenu(menu);
+    tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus(); });
+  } catch (e) { console.error('Tray error:', e.message); }
 }
+
+function showAboutDialog() {
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    icon: fs.existsSync(ICON_PATH) ? ICON_PATH : undefined,
+    title: 'About OpenCode Desktop',
+    message: 'OpenCode Desktop',
+    detail: [
+      'Version ' + APP_VERSION,
+      '',
+      'AI-powered development environment',
+      'combining terminal, git, notes & chat',
+      'in one seamless window.',
+      '',
+      'Built by Eugine Micah',
+      'github.com/eugineous/opencode-desktop',
+    ].join('\n'),
+    buttons: ['OK', 'Open GitHub'],
+    defaultId: 0,
+  }).then(({ response }) => {
+    if (response === 1) shell.openExternal('https://github.com/eugineous/opencode-desktop');
+  }).catch(() => {});
+}
+
+ipcMain.handle('show-about', () => showAboutDialog());
+
+// ─── Auto-updater ─────────────────────────────────────────────────
+function setupAutoUpdater() {
+  autoUpdater.logger = null; // silent
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    mainWindow?.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes || ''
+    });
+  });
+
+  autoUpdater.on('download-progress', (p) => {
+    mainWindow?.webContents.send('update-progress', Math.round(p.percent));
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    mainWindow?.webContents.send('update-downloaded', { version: info.version });
+  });
+
+  autoUpdater.on('error', () => {}); // swallow network errors silently
+
+  // Check on launch, then every 4 hours
+  setTimeout(() => { try { autoUpdater.checkForUpdates(); } catch {} }, 8000);
+  setInterval(() => { try { autoUpdater.checkForUpdates(); } catch {} }, 4 * 60 * 60 * 1000);
+}
+
+ipcMain.handle('check-for-updates-now', async () => {
+  try { await autoUpdater.checkForUpdates(); return { checking: true }; }
+  catch (e) { return { error: e.message }; }
+});
+ipcMain.handle('install-update-now', () => {
+  try { autoUpdater.quitAndInstall(false, true); } catch {}
+});
 
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
   // Global hotkey: Ctrl+Alt+O to show/focus the app
   try {
     globalShortcut.register('CommandOrControl+Alt+O', () => {
@@ -262,10 +340,6 @@ ipcMain.handle('git-blame', (_, file) => {
 ipcMain.handle('git-is-repo', () => {
   if (!projectDir) return false;
   return fs.existsSync(path.join(projectDir, '.git'));
-});
-
-ipcMain.handle('git-commit', (_, msg) => {
-  return gitRun(`commit -m "${msg.replace(/"/g, '\\"')}"`);
 });
 
 ipcMain.handle('git-add', (_, files) => {
@@ -880,4 +954,294 @@ ipcMain.handle('file-delete-fs', (_, p) => {
 
 ipcMain.handle('file-rename-fs', (_, { from, to }) => {
   try { fs.renameSync(from, to); return true; } catch { return false; }
+});
+
+// ─── Project statistics ───────────────────────────────────────────
+ipcMain.handle('project-stats', () => {
+  if (!projectDir) return null;
+  const stats = { fileCount: 0, lineCount: 0, totalBytes: 0, byExt: {}, largest: [] };
+  const exts = ['.js','.ts','.tsx','.jsx','.py','.rs','.go','.html','.css','.json','.md','.sh','.yaml','.yml','.toml','.sql','.c','.cpp','.h'];
+  function walk(dir, depth = 0) {
+    if (depth > 6) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === 'dist' || e.name === 'out') continue;
+      const fp = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(fp, depth + 1); continue; }
+      const ext = path.extname(e.name).toLowerCase();
+      let st;
+      try { st = fs.statSync(fp); } catch { continue; }
+      stats.fileCount++;
+      stats.totalBytes += st.size;
+      stats.byExt[ext] = (stats.byExt[ext] || 0) + 1;
+      if (exts.includes(ext)) {
+        try {
+          const lc = fs.readFileSync(fp, 'utf-8').split('\n').length;
+          stats.lineCount += lc;
+          stats.largest.push({ name: e.name, lines: lc, size: st.size });
+        } catch {}
+      }
+    }
+  }
+  walk(projectDir);
+  stats.largest = stats.largest.sort((a, b) => b.lines - a.lines).slice(0, 5);
+  return stats;
+});
+
+// ─── TODO / FIXME scanner ─────────────────────────────────────────
+ipcMain.handle('todo-scan', () => {
+  if (!projectDir) return [];
+  const results = [];
+  const pattern = /\/\/\s*(TODO|FIXME|HACK|XXX|NOTE|BUG)[\s:]*(.*)/gi;
+  function walk(dir, depth = 0) {
+    if (depth > 5) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === 'dist') continue;
+      const fp = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(fp, depth + 1); continue; }
+      const ext = path.extname(e.name).toLowerCase();
+      if (!['.js','.ts','.tsx','.jsx','.py','.rs','.go','.c','.cpp','.h','.java','.php','.rb'].includes(ext)) continue;
+      try {
+        const lines = fs.readFileSync(fp, 'utf-8').split('\n');
+        lines.forEach((line, i) => {
+          const m = line.match(/\/\/\s*(TODO|FIXME|HACK|XXX|NOTE|BUG)[\s:]*(.*)/i) ||
+                    line.match(/#\s*(TODO|FIXME|HACK|XXX|NOTE|BUG)[\s:]*(.*)/i);
+          if (m) results.push({ file: fp, relPath: path.relative(projectDir, fp), line: i + 1, type: m[1].toUpperCase(), text: m[2].trim() });
+        });
+      } catch {}
+      if (results.length > 200) return;
+    }
+  }
+  walk(projectDir);
+  return results;
+});
+
+// ─── Git stash ────────────────────────────────────────────────────
+ipcMain.handle('git-stash-list', () => {
+  if (!projectDir) return [];
+  try {
+    const out = execSync('git stash list --format="%gd|%s|%cr"', { cwd: projectDir, encoding: 'utf-8' });
+    return out.trim().split('\n').filter(Boolean).map(l => {
+      const [ref, msg, when] = l.split('|');
+      return { ref: ref?.trim(), message: msg?.trim(), when: when?.trim() };
+    });
+  } catch { return []; }
+});
+
+ipcMain.handle('git-stash-apply', (_, ref) => {
+  if (!projectDir) return { success: false };
+  try { execSync('git stash apply ' + (ref || ''), { cwd: projectDir }); return { success: true }; }
+  catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+ipcMain.handle('git-stash-drop', (_, ref) => {
+  if (!projectDir) return { success: false };
+  try { execSync('git stash drop ' + (ref || ''), { cwd: projectDir }); return { success: true }; }
+  catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+ipcMain.handle('git-stash-push', (_, msg) => {
+  if (!projectDir) return { success: false };
+  try {
+    const cmd = msg ? `git stash push -m ${JSON.stringify(msg)}` : 'git stash push';
+    execSync(cmd, { cwd: projectDir });
+    return { success: true };
+  } catch (e) { return { success: false, error: e.stderr || e.message }; }
+});
+
+// ─── Open GitHub remote ───────────────────────────────────────────
+ipcMain.handle('git-open-github', () => {
+  if (!projectDir) return false;
+  try {
+    const remote = execSync('git remote get-url origin', { cwd: projectDir, encoding: 'utf-8' }).trim();
+    let url = remote.replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
+    require('electron').shell.openExternal(url);
+    return true;
+  } catch { return false; }
+});
+
+// ─── Read file with line info ─────────────────────────────────────
+ipcMain.handle('file-read-lines', (_, p) => {
+  try {
+    const content = fs.readFileSync(p, 'utf-8');
+    return { content, lines: content.split('\n').length };
+  } catch { return null; }
+});
+
+// ─── Global search across project ────────────────────────────────
+ipcMain.handle('project-search', (_, { query, useRegex, caseSensitive }) => {
+  if (!projectDir || !query) return [];
+  const results = [];
+  let pattern;
+  try {
+    pattern = new RegExp(useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+  } catch { return []; }
+  const textExts = ['.js','.ts','.tsx','.jsx','.py','.rs','.go','.html','.css','.json','.md','.sh','.yaml','.yml','.toml','.txt','.sql','.c','.cpp','.h'];
+  function walk(dir, depth = 0) {
+    if (depth > 5 || results.length > 300) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name === 'node_modules' || e.name === 'dist') continue;
+      const fp = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(fp, depth + 1); continue; }
+      if (!textExts.includes(path.extname(e.name).toLowerCase())) continue;
+      try {
+        const lines = fs.readFileSync(fp, 'utf-8').split('\n');
+        lines.forEach((line, i) => {
+          if (pattern.test(line)) {
+            results.push({ file: path.relative(projectDir, fp), fullPath: fp, line: i + 1, text: line.trim() });
+          }
+          pattern.lastIndex = 0;
+        });
+      } catch {}
+    }
+  }
+  walk(projectDir);
+  return results;
+});
+
+// ─── Project-wide replace ─────────────────────────────────────────
+ipcMain.handle('project-replace', (_, { query, replacement, useRegex, caseSensitive, files }) => {
+  if (!projectDir || !query) return { changed: 0 };
+  let pattern;
+  try {
+    pattern = new RegExp(useRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), caseSensitive ? 'g' : 'gi');
+  } catch { return { changed: 0, error: 'Invalid regex' }; }
+  let changed = 0;
+  for (const fp of files) {
+    try {
+      const original = fs.readFileSync(fp, 'utf-8');
+      const updated = original.replace(pattern, replacement || '');
+      if (updated !== original) { fs.writeFileSync(fp, updated, 'utf-8'); changed++; }
+    } catch {}
+    pattern.lastIndex = 0;
+  }
+  return { changed };
+});
+
+// ─── Unified App Memory / Persistent Store ───────────────────────
+const MEMORY_DIR = path.join(os.homedir(), '.opencode-desktop', 'memory');
+const STORE_FILE = path.join(MEMORY_DIR, 'store.json');
+const HISTORY_FILE = path.join(MEMORY_DIR, 'history.json');
+
+function ensureMemoryDir() {
+  try { fs.mkdirSync(MEMORY_DIR, { recursive: true }); } catch {}
+}
+
+function readStore() {
+  try { return JSON.parse(fs.readFileSync(STORE_FILE, 'utf-8')); } catch { return {}; }
+}
+function writeStore(data) {
+  ensureMemoryDir();
+  try { fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf-8'); } catch {}
+}
+
+function readHistory() {
+  try { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8')); } catch { return {}; }
+}
+function writeHistory(data) {
+  ensureMemoryDir();
+  try { fs.writeFileSync(HISTORY_FILE, JSON.stringify(data), 'utf-8'); } catch {}
+}
+
+// Generic key-value store
+ipcMain.handle('store-get', (_, key) => {
+  const store = readStore();
+  return key ? store[key] : store;
+});
+
+ipcMain.handle('store-set', (_, key, value) => {
+  const store = readStore();
+  store[key] = value;
+  writeStore(store);
+  return true;
+});
+
+ipcMain.handle('store-delete', (_, key) => {
+  const store = readStore();
+  delete store[key];
+  writeStore(store);
+  return true;
+});
+
+ipcMain.handle('store-keys', () => Object.keys(readStore()));
+
+// History lists (append-only, capped by type)
+const HISTORY_CAPS = {
+  chat: 2000,        // chat messages
+  clipboard: 200,    // clipboard items
+  search: 100,       // search queries
+  command: 100,      // command palette usage
+  files: 200,        // recently opened files
+  terminal: 500,     // terminal commands (extracted from output)
+};
+
+ipcMain.handle('history-append', (_, { type, item }) => {
+  if (!type || !item) return false;
+  const hist = readHistory();
+  if (!hist[type]) hist[type] = [];
+  // Deduplicate text-only items
+  const key = typeof item === 'string' ? item : item.text || item.query || item.message || JSON.stringify(item);
+  hist[type] = hist[type].filter(h => {
+    const k = typeof h === 'string' ? h : h.text || h.query || h.message || JSON.stringify(h);
+    return k !== key;
+  });
+  hist[type].unshift({ ...( typeof item === 'string' ? { text: item } : item ), ts: Date.now() });
+  const cap = HISTORY_CAPS[type] || 100;
+  if (hist[type].length > cap) hist[type] = hist[type].slice(0, cap);
+  writeHistory(hist);
+  return true;
+});
+
+ipcMain.handle('history-get', (_, type) => {
+  const hist = readHistory();
+  if (type) return hist[type] || [];
+  return hist;
+});
+
+ipcMain.handle('history-clear', (_, type) => {
+  const hist = readHistory();
+  if (type) hist[type] = [];
+  else Object.keys(hist).forEach(k => hist[k] = []);
+  writeHistory(hist);
+  return true;
+});
+
+// ─── Clipboard watcher ───────────────────────────────────────────
+let clipWatchInterval = null;
+let lastClipText = '';
+
+function startClipboardWatcher() {
+  if (clipWatchInterval) return;
+  clipWatchInterval = setInterval(() => {
+    try {
+      const text = clipboard.readText();
+      if (text && text !== lastClipText && text.length < 10000) {
+        lastClipText = text;
+        // Persist to history
+        const hist = readHistory();
+        if (!hist.clipboard) hist.clipboard = [];
+        hist.clipboard = hist.clipboard.filter(h => h.text !== text);
+        hist.clipboard.unshift({ text, ts: Date.now() });
+        if (hist.clipboard.length > HISTORY_CAPS.clipboard) hist.clipboard = hist.clipboard.slice(0, HISTORY_CAPS.clipboard);
+        writeHistory(hist);
+        // Notify renderer
+        mainWindow?.webContents.send('clipboard-changed', { text, ts: Date.now() });
+      }
+    } catch {}
+  }, 1500);
+}
+
+ipcMain.handle('clipboard-history', () => {
+  const hist = readHistory();
+  return hist.clipboard || [];
+});
+
+// Start clipboard watcher when app is ready
+app.whenReady().then(() => {
+  setTimeout(startClipboardWatcher, 2000);
 });
