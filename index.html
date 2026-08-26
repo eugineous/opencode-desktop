@@ -355,8 +355,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 /* ── Focus mode ── */
 body.focus-mode .sb,body.focus-mode .st-bar,body.focus-mode .session-bar,
 body.focus-mode .t-bar,body.focus-mode .nh{display:none!important}
-body.focus-mode .lay{height:100vh}
-body.focus-mode .ct{height:100vh}
+
+/* Focus mode floating nav */
+#focus-nav{display:none;position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+background:rgba(14,14,20,.94);border:1px solid rgba(217,119,6,.22);border-radius:40px;
+padding:5px 8px;gap:2px;z-index:300;backdrop-filter:blur(14px);
+box-shadow:0 6px 28px rgba(0,0,0,.55);align-items:center}
+body.focus-mode #focus-nav{display:flex}
+#focus-nav button{width:34px;height:34px;border:none;background:transparent;
+color:var(--text2);cursor:pointer;border-radius:50%;font-size:14px;display:flex;
+align-items:center;justify-content:center;transition:all .12s;flex-shrink:0}
+#focus-nav button:hover{background:var(--hover);color:var(--text)}
+#focus-nav button.fn-on{color:var(--accent);background:var(--accentBg)}
+#focus-nav .fn-sep{width:1px;height:20px;background:var(--border);margin:0 4px;flex-shrink:0}
+#focus-nav .fn-exit:hover{background:rgba(239,68,68,.14);color:var(--red)}
 
 /* ── Keyboard shortcut overlay ── */
 .kb-ov{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:600;display:flex;align-items:center;justify-content:center}
@@ -1041,6 +1053,18 @@ body.focus-mode .ct{height:100vh}
   </div>
 </div>
 
+<!-- Focus mode floating nav -->
+<div id="focus-nav">
+  <button data-fnv="chat" onclick="sw('chat')" title="Chat">&#128172;</button>
+  <button data-fnv="terminal" onclick="sw('terminal');initTerm()" title="OpenCode Terminal">&#128187;</button>
+  <button data-fnv="files" onclick="sw('files')" title="Files">&#128193;</button>
+  <button data-fnv="git" onclick="sw('git');loadGit()" title="Git">&#128196;</button>
+  <button data-fnv="notes" onclick="sw('notes');loadObsidianNotes()" title="Notes">&#128221;</button>
+  <button data-fnv="search" onclick="sw('search')" title="Search">&#128269;</button>
+  <div class="fn-sep"></div>
+  <button class="fn-exit" onclick="toggleFocusMode()" title="Exit focus mode (F11)">&#10005;</button>
+</div>
+
 <script src="node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="node_modules/@xterm/addon-search/lib/addon-search.js"></script>
@@ -1076,6 +1100,7 @@ function sw(v) {
     term.focus();
   }, 100);
   if (v === 'git') { loadBranches(); document.getElementById('git-commit-form').style.display = ''; }
+  updateFocusNav();
 }
 
 function toggleSB() {
@@ -2458,7 +2483,19 @@ let focusModeOn = false;
 function toggleFocusMode() {
   focusModeOn = !focusModeOn;
   document.body.classList.toggle('focus-mode', focusModeOn);
-  if (term) setTimeout(() => fitAddon?.fit(), 60);
+  updateFocusNav();
+  if (term) setTimeout(() => {
+    try {
+      fitAddon?.fit();
+      if (termConnected && term.cols > 0 && term.rows > 0) api.termResize(term.cols, term.rows);
+      term.focus();
+    } catch {}
+  }, 120);
+}
+function updateFocusNav() {
+  document.querySelectorAll('#focus-nav button[data-fnv]').forEach(b => {
+    b.classList.toggle('fn-on', b.dataset.fnv === curV);
+  });
 }
 
 // ─── POMODORO ─────────────────────────────────────────────────────
