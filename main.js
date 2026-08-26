@@ -8,7 +8,11 @@ const { autoUpdater } = require('electron-updater');
 // ─── App identity ─────────────────────────────────────────────────
 app.setName('OpenCode Desktop');
 const APP_VERSION = app.getVersion() || '1.2.0';
-const ICON_PATH = path.join(__dirname, 'assets', 'icon.ico');
+const IS_WIN = process.platform === 'win32';
+const IS_MAC = process.platform === 'darwin';
+const ICON_PATH = IS_WIN  ? path.join(__dirname, 'assets', 'icon.ico')
+                : IS_MAC  ? path.join(__dirname, 'assets', 'icon.icns')
+                :           path.join(__dirname, 'assets', 'icon.png');
 const ICON_PNG  = path.join(__dirname, 'assets', 'icon.png');
 
 let mainWindow = null;
@@ -637,7 +641,16 @@ ipcMain.on('terminal-resize', (_, { cols, rows }) => {
 });
 
 // ─── Obsidian Vault ──────────────────────────────────────────────
-const OBSIDIAN_VAULT = 'C:\\Users\\eugin\\OneDrive\\Documents\\Obsidian Vault';
+function resolveObsidianVault() {
+  if (IS_WIN) return 'C:\\Users\\eugin\\OneDrive\\Documents\\Obsidian Vault';
+  // macOS: try iCloud sync location, then ~/Documents
+  const candidates = [
+    path.join(os.homedir(), 'Library', 'Mobile Documents', 'iCloud~md~obsidian', 'Documents', 'Obsidian Vault'),
+    path.join(os.homedir(), 'Documents', 'Obsidian Vault'),
+  ];
+  return candidates.find(p => fs.existsSync(p)) || candidates[0];
+}
+const OBSIDIAN_VAULT = resolveObsidianVault();
 
 ipcMain.handle('obsidian-path', () => OBSIDIAN_VAULT);
 

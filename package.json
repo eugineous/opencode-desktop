@@ -16,7 +16,9 @@
     "start": "electron .",
     "build": "electron-builder --win nsis --x64",
     "build:portable": "electron-builder --win portable --x64",
-    "build:all": "electron-builder --win --x64"
+    "build:all": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac dmg",
+    "rebuild:mac": "electron-rebuild --version 33.4.11 --module-dir node_modules/node-pty"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
@@ -50,6 +52,19 @@
     ],
     "extraMetadata": {
       "version": "1.2.0"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "darkModeSupport": true,
+      "artifactName": "OpenCode Desktop ${version}.${ext}"
+    },
+    "dmg": {
+      "title": "OpenCode Desktop ${version}",
+      "artifactName": "OpenCode Desktop ${version}.${ext}"
     },
     "win": {
       "target": [

@@ -1,0 +1,116 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-mac:
+    name: macOS DMG
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild node-pty for Electron
+        run: npx electron-rebuild --version 33.4.11 --module-dir node_modules/node-pty
+
+      - name: Build macOS DMG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run build:mac
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.dmg.blockmap
+            dist/latest-mac.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    name: Windows NSIS
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Patch node-pty for Electron (Windows)
+        shell: pwsh
+        run: |
+          $gypFile = "node_modules\node-pty\deps\winpty\src\winpty.gyp"
+          (Get-Content $gypFile) `
+            -replace "'<!.*GetCommitHash.*\)'", "''" `
+            -replace "'<!.*UpdateGenVersion.*\)'", "'gen'" |
+            Set-Content $gypFile
+          $genH = "node_modules\node-pty\deps\winpty\src\gen\GenVersion.h"
+          New-Item -ItemType Directory -Force (Split-Path $genH) | Out-Null
+          @"
+          const char GenVersion_Version[] = "0.0.0";
+          const char GenVersion_Commit[] = "";
+          "@ | Set-Content $genH
+
+      - name: Configure node-pty gyp
+        run: npx node-gyp configure --target=33.4.11 --dist-url=https://electronjs.org/headers --arch=x64
+        working-directory: node_modules/node-pty
+
+      - name: Patch Spectre mitigation
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse -Filter "*.vcxproj" -Path "node_modules\node-pty" | ForEach-Object {
+            (Get-Content $_.FullName) -replace '<SpectreMitigation>.*</SpectreMitigation>', '<SpectreMitigation>false</SpectreMitigation>' |
+            Set-Content $_.FullName
+            $content = Get-Content $_.FullName
+            if (-not ($content -match 'SpectreMitigation')) {
+              (Get-Content $_.FullName) -replace '<RuntimeLibrary>', '<SpectreMitigation>false</SpectreMitigation><RuntimeLibrary>' |
+              Set-Content $_.FullName
+            }
+          }
+
+      - name: Build node-pty
+        run: npx node-gyp build
+        working-directory: node_modules/node-pty
+
+      - name: Copy native module to prebuilds
+        shell: pwsh
+        run: |
+          $dest = "node_modules\node-pty\prebuilds\win32-x64"
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          Copy-Item "node_modules\node-pty\build\Release\winpty.node" $dest
+          Copy-Item "node_modules\node-pty\build\Release\winpty-agent.exe" $dest
+          Copy-Item "node_modules\node-pty\build\Release\conpty.node" $dest -ErrorAction SilentlyContinue
+
+      - name: Build Windows installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
